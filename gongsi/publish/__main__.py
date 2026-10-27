@@ -104,6 +104,12 @@ def cmd_notify(args) -> None:
 
 
 def cmd_poll(args) -> None:
+    # 아침 생성 때 텔레그램 설정이 없었거나 전송이 실패해 아직 승인 요청이 안 간 게시물이 있으면 먼저 보낸다
+    if os.getenv("TELEGRAM_BOT_TOKEN") and os.getenv("TELEGRAM_CHAT_ID"):
+        cmd_notify(args)
+    else:
+        log("poll", skipped="TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID 없음")
+        return
     decisions = telegram.read_decisions()
     log("poll", decisions=len(decisions))
     for decision, rcept, cq in decisions:
