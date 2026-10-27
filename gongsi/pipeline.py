@@ -22,7 +22,7 @@ from gongsi.logos import fetch_logo
 from gongsi.render import render
 from gongsi.select import select
 from gongsi.summarize import summarize
-from gongsi.verify import check_numbers, check_forbidden, check_risks, check_summary
+from gongsi.verify import check_caption_layout, check_numbers, check_forbidden, check_risks, check_summary
 
 
 def log(stage: str, **kw):
@@ -99,7 +99,8 @@ def run(adapter: Adapter, date_from: str, date_to: str, only_rcept: str | None, 
 
             # 5. 검증
             db.stage(run_id, "verify")
-            card_list, derived = cardmod.build(facts, summary, today, d.rcept_no)
+            doc = cardmod.doc_kind(d.report_name)  # 출처 줄 문서 이름: 투자설명서 접수번호면 투자설명서로
+            card_list, derived = cardmod.build(facts, summary, today, d.rcept_no, doc)
             texts = [t for c in card_list for t in c.texts() if t and t not in c.verbatim]
             allowed_derived = set(derived.keys())
             problems = [p for p in check_numbers(texts, facts) if not any(f"'{k}'" in p for k in allowed_derived)]
@@ -108,11 +109,12 @@ def run(adapter: Adapter, date_from: str, date_to: str, only_rcept: str | None, 
             if facts.revenue_krw and occ < 2:
                 problems.append(f"매출 숫자가 원문에 {occ}번만 나옴 (열 선택 오류 의심)")
             problems += check_forbidden(summary.business_lines + [facts.industry or ""] + [l for pair in summary.risk_lines for l in pair])
-            # 캡션도 카드와 같은 기준으로: 숫자는 facts·derived에서만 (출처 줄의 접수번호는 제외), 금지어 없음
-            cap = cardmod.caption(facts, d.rcept_no, summary)
+            # 캡션도 카드와 같은 기준으로: 숫자는 facts·derived에서만 (출처 줄의 접수번호는 제외), 금지어 없음, 줄바꿈 규칙
+            cap = cardmod.caption(facts, d.rcept_no, summary, doc)
             cap_body = "\n".join(l for l in cap.splitlines() if not l.startswith("출처:"))
             problems += [f"캡션: {p}" for p in check_numbers([cap_body], facts) if not any(f"'{k}'" in p for k in allowed_derived)]
             problems += [f"캡션: {p}" for p in check_forbidden([cap_body])]
+            problems += [f"캡션: {p}" for p in check_caption_layout(cap)]
             verified = not problems
             db.add_fact(issue_ids[d.rcept_no], facts.model_dump(), {"summary": summary.model_dump(), "by": how, "derived": derived},
                         verified, "; ".join(problems) if problems else None)

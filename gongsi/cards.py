@@ -83,7 +83,13 @@ class Card:
         return [self.title, self.sub, *self.lines, self.tease] + extra
 
 
-def build(facts: IpoFacts, summary: Summary, today: date | None = None, rcept_no: str = "") -> tuple[list[Card], dict[str, str]]:
+def doc_kind(report_name: str | None) -> str:
+    """출처 줄에 쓸 문서 이름. 접수번호가 투자설명서면 증권신고서라고 쓰지 않는다."""
+    return "투자설명서" if "투자설명서" in (report_name or "") else "증권신고서"
+
+
+def build(facts: IpoFacts, summary: Summary, today: date | None = None, rcept_no: str = "",
+          doc: str = "증권신고서") -> tuple[list[Card], dict[str, str]]:
     today = today or date.today()
     derived: dict[str, str] = {}
     dday = (date.fromisoformat(facts.subscription_start) - today).days if facts.subscription_start else None
@@ -178,8 +184,8 @@ def build(facts: IpoFacts, summary: Summary, today: date | None = None, rcept_no
         price = f"희망 공모가 {facts.band_low_krw:,}~{facts.band_high_krw:,}원"
     else:
         price = "공모가 미정"
-    if facts.band_low_krw and facts.band_high_krw and facts.final_price_krw:
-        pos = "밴드 맨 위" if facts.final_price_krw == facts.band_high_krw else ("밴드 맨 아래" if facts.final_price_krw == facts.band_low_krw else "밴드 안")
+    pos = band_pos(facts.final_price_krw, facts.band_low_krw, facts.band_high_krw)  # 밴드 밖이면 '밴드보다 위/아래'
+    if pos:
         price += f" ({pos})"
     c9 = Card(9, "schedule", mdrange(facts.subscription_start, facts.subscription_end), "청약은 이날이에요",
               lines=[" · ".join(x for x in (", ".join(facts.underwriters), price) if x)],
@@ -212,55 +218,92 @@ def build(facts: IpoFacts, summary: Summary, today: date | None = None, rcept_no
     for i, c in enumerate(cards, start=1):
         c.n = i
         c.tease = cards[i].lead if i < len(cards) else ""
-        c.data["source"] = f"자료 금융감독원 전자공시 DART · 증권신고서 {rcept_no}".rstrip()
+        c.data["source"] = f"자료 금융감독원 전자공시 DART · {doc} {rcept_no}".rstrip()
     return cards, derived
 
 
+WEEKDAY = "월화수목금토일"
+
+
+def kdate(d: str) -> str:
+    """'2026-11-02' → '11월 2일(월)' (캡션용. 요일은 날짜에서 계산하므로 공시 숫자가 아님)"""
+    x = date.fromisoformat(d)
+    return f"{x.month}월 {x.day}일({WEEKDAY[x.weekday()]})"
+
+
 def kdays(a: str | None, b: str | None) -> str:
-    """'2026-11-02','2026-11-03' → '11월 2~3일' (캡션용 한국어 날짜)"""
+    """'2026-11-02','2026-11-03' → '11월 2일(월)~3일(화)', 달이 바뀌면 '10월 30일(금)~11월 2일(월)'"""
     if not a:
-        return "미정"
-    m1, d1 = int(a[5:7]), int(a[8:10])
+        return ""
     if not b or a == b:
-        return f"{m1}월 {d1}일"
-    m2, d2 = int(b[5:7]), int(b[8:10])
-    return f"{m1}월 {d1}~{d2}일" if m1 == m2 else f"{m1}월 {d1}일~{m2}월 {d2}일"
+        return kdate(a)
+    x, y = date.fromisoformat(a), date.fromisoformat(b)
+    return f"{kdate(a)}~" + (f"{y.day}일({WEEKDAY[y.weekday()]})" if (x.year, x.month) == (y.year, y.month) else kdate(b))
 
 
-def caption(facts: IpoFacts, rcept_no: str, summary: Summary | None = None) -> str:
-    """인스타 캡션. 검색은 캡션 글을 보고 '더 보기' 전엔 앞부분만 보이니, 첫 줄에 회사명·공모주·청약일과 숫자 하나.
-    해시태그는 게시물당 5개까지(2025.12~)라 5개로 맞춘다. 숫자는 전부 facts에서만 (verify가 캡션도 대조)."""
+def band_pos(final: int | None, low: int | None, high: int | None) -> str:
+    """확정 공모가가 희망 밴드의 어디인지. 밴드 밖(상단 초과·하단 미만)도 사실대로 쓴다."""
+    if not (final and low and high):
+        return ""
+    if final > high:
+        return "밴드보다 위"
+    if final == high:
+        return "밴드 맨 위"
+    if final < low:
+        return "밴드보다 아래"
+    if final == low:
+        return "밴드 맨 아래"
+    return "밴드 안"
+
+
+def _ieyo(word: str) -> str:
+    """받침 있으면 '이에요', 없으면 '예요' (한글이 아닌 끝 글자는 '예요')"""
+    ch = word[-1]
+    return "이에요" if "가" <= ch <= "힣" and (ord(ch) - 0xAC00) % 28 else "예요"
+
+
+def caption(facts: IpoFacts, rcept_no: str, summary: Summary | None = None, doc: str = "증권신고서") -> str:
+    """인스타 캡션. 2026-10-27 '말투가 AI 같고 줄바꿈이 제멋대로' 피드백으로 다시 짬.
+
+    규칙 (verify.check_caption_layout이 검사):
+    - 덩어리(제목 / 숫자 / 일정 / 출처 / 해시태그) 사이에만 빈 줄 하나. 덩어리 안에는 빈 줄 없음
+    - 한 줄에 한 가지: 숫자는 '이름 값' 한 줄, 문장은 한 줄에 한 문장. 휴대폰 한 줄을 넘지 않는 길이
+    - 숫자 줄은 명사형으로 짧게. '~요' 문장은 회사 소개 한 줄과 다음 소식 한 줄, 면책 한 줄뿐
+    - 질문·저장 유도 문구는 카드 10장에 이미 있어 캡션에서 뺌. 구현 안 된 약속(상장일 결과 게시)도 쓰지 않음
+    - 첫 두 줄(회사명 공모주 청약 / 청약일)이 '더 보기' 전 미리보기와 검색에 걸리는 부분
+    - 숫자는 전부 facts에서 (pipeline이 카드와 같은 기준으로 대조). 해시태그는 게시물당 5개까지(2025.12~)
+    """
     corp = facts.corp_name
-    if facts.demand_ratio is not None and facts.lockup_ratio_pct is not None:
-        hook = f"경쟁률은 {ratio(facts.demand_ratio)}, 확약은 {pct(facts.lockup_ratio_pct)}예요"
-    elif facts.float_ratio_pct is not None:
-        hook = f"상장 첫날 팔 수 있는 물량은 {pct(facts.float_ratio_pct)}예요"
-    else:
-        hook = f"공모 규모는 {won(facts.offering_amount_krw)}이에요"
-    first = f"{corp} 공모주 청약은 {kdays(facts.subscription_start, facts.subscription_end)}이에요. {hook}"
+    blocks: list[list[str]] = [[f"{corp} 공모주 청약", kdays(facts.subscription_start, facts.subscription_end)]]
 
-    body = []
-    if summary and summary.business_lines:
-        body.append(" ".join(l.strip() for l in summary.business_lines if l.strip()))
+    nums: list[str] = []
+    if facts.industry:
+        ind = facts.industry.strip()
+        nums.append(f"{ind}{_ieyo(ind)}." if ind.endswith(("회사", "기업", "업체")) else f"{ind} 회사예요.")
     if facts.final_price_krw:
-        pos = ""
-        if facts.band_low_krw and facts.band_high_krw:
-            pos = " (밴드 맨 위)" if facts.final_price_krw == facts.band_high_krw else (
-                " (밴드 맨 아래)" if facts.final_price_krw == facts.band_low_krw else " (밴드 안)")
-        body.append(f"공모가 {facts.final_price_krw:,}원{pos}, 공모 규모 {won(facts.offering_amount_krw)}")
+        pos = band_pos(facts.final_price_krw, facts.band_low_krw, facts.band_high_krw)
+        nums.append(f"확정 공모가 {facts.final_price_krw:,}원" + (f" ({pos})" if pos else ""))
     elif facts.band_low_krw and facts.band_high_krw:
-        body.append(f"희망 공모가 {facts.band_low_krw:,}~{facts.band_high_krw:,}원, 공모 규모 {won(facts.offering_amount_krw)}(밴드 하단 기준)")
-    if facts.demand_ratio is None and facts.forecast_start:
-        body.append(f"수요예측({mdrange(facts.forecast_start, facts.forecast_end)}) 결과가 나오면 경쟁률·확약으로 다시 정리해 드릴게요")
-    elif facts.listing_date:
-        body.append(f"상장은 {kdays(facts.listing_date, None)} 예정이에요. 그날 시초가 결과로 다시 올게요")
+        nums.append(f"희망 공모가 {facts.band_low_krw:,}~{facts.band_high_krw:,}원")
+    if facts.demand_ratio is not None:
+        nums.append(f"수요예측 경쟁률 {ratio(facts.demand_ratio)}")
+    if facts.lockup_ratio_pct is not None:
+        nums.append(f"의무보유 확약 {pct(facts.lockup_ratio_pct)}")
+    if facts.float_ratio_pct is not None:
+        nums.append(f"상장 직후 유통 가능 물량 {pct(facts.float_ratio_pct)}")
+    if facts.min_deposit_krw:
+        nums.append(f"최소 청약 증거금 {facts.min_deposit_krw:,}원")
+    blocks.append(nums)
 
+    if facts.demand_ratio is None:  # 수요예측 전: 언제 끝나는지 + 결과가 나오면 다시 올린다(발행조건확정 공시로 2차 게시가 실제로 돈다)
+        when = [f"수요예측 {kdays(facts.forecast_start, facts.forecast_end)}"] if facts.forecast_start else []
+        blocks.append(when + ["결과 나오면 다시 정리해서 올릴게요."])
+    else:  # 수요예측 뒤: 청약 다음 일정
+        blocks.append([f"환불일 {kdate(facts.refund_date)}"] * bool(facts.refund_date)
+                      + [f"상장 예정일 {kdate(facts.listing_date)}"] * bool(facts.listing_date))
+
+    blocks.append([f"출처: DART {doc} {rcept_no}", "투자 권유는 아니에요."])
     tags = ["#공모주", "#공모주청약", "#" + corp.replace(" ", ""), "#청약일정", BRAND.get("hashtag", "")]
-    tags = [t for t in dict.fromkeys(tags) if t and t != "#"][:5]
-    return (
-        first + "\n\n"
-        + ("\n".join(body) + "\n\n" if body else "")
-        + "청약 생각 있으세요? 댓글로 알려 주세요. 청약 전에 다시 보려면 저장해 두세요\n\n"
-        + f"출처: DART 증권신고서 {rcept_no} · 공시에 적힌 사실만 전해드려요. 투자 권유는 아니에요\n"
-        + " ".join(tags)
-    )
+    blocks.append([" ".join([t for t in dict.fromkeys(tags) if t and t != "#"][:5])])
+    blocks = [[l for l in b if l] for b in blocks]  # 값이 없어 비는 줄은 빼서 덩어리 안에 빈 줄이 생기지 않게
+    return "\n\n".join("\n".join(b) for b in blocks if b)
