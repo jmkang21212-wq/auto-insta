@@ -157,8 +157,80 @@ class DocFacts:
     risks: list[tuple[str, str, str]] = field(default_factory=list)  # (category, title, body)
     business_evidence: list[str] = field(default_factory=list)
     glossary: dict[str, str] = field(default_factory=dict)  # 신고서 '전문용어 해설' 표: 용어 → 뜻 (훅·캡션 풀이의 근거)
+    customers: list[str] = field(default_factory=list)  # 주요 고객사 이름 (원문 그대로, 한글 우선)
+    customer_note: str | None = None  # 매출 비중 문장 (원문 숫자 그대로)
     derived: dict[str, str] = field(default_factory=dict)  # 계산값 → 공식
     found: dict[str, str] = field(default_factory=dict)  # 항목 → 어디서 찾았는지 (로그용)
+
+
+# ── 주요 고객사 (2026-10-28: '공시에 주요 고객사는 안 나와?' → 캡션 🏢에 원문 이름 그대로) ──
+
+NAME = r"(?:[A-Z][A-Za-z0-9&.\-]*(?:\s[A-Z][A-Za-z0-9&.\-]*){0,3}|[가-힣][가-힣A-Za-z0-9]{1,20})"
+_PARTICLES = ("으로부터", "로부터", "에서", "에게", "뿐", "향", "의", "는", "은", "에", "와", "과", "로")
+_GENERIC = ("확보", "절감", "다변화", "계획", "기준", "시점", "물량", "절차", "보상", "안정", "품질", "발주", "공급", "생산", "원가",
+            "비중", "매출", "고객", "업체", "시장", "산업", "사업", "제품", "부문", "기술", "장비", "소재", "정책", "거래", "경쟁")
+_NAME_STOP = {"글로벌", "국내", "해외", "다수", "소수", "주요", "기존", "신규", "당사", "동사", "자사", "이들", "해당", "최종", "전방", "후방"}
+_LATIN_STOP = {"OLED", "FOG", "RLG", "LCD", "IT", "AI", "IPO", "DART", "OEM", "ODM", "B2B", "R&D", "EMS", "LTE"}
+
+
+def _strip(tok: str, t: str) -> str:
+    """'삼성디스플레이의' → '삼성디스플레이'. 떼어 낸 꼴이 원문에 따로 더 많이 나올 때만 (에코프로의 '로'처럼 이름 끝 글자는 안 뗌)"""
+    for p in _PARTICLES:
+        if tok.endswith(p) and len(tok) - len(p) >= 2:
+            s = tok[: -len(p)]
+            if t.count(s) > t.count(tok) + 1:
+                return s
+    return tok
+
+
+def customers_from_text(t: str) -> tuple[list[str], str]:
+    """증권신고서의 주요 고객사 이름과 매출 비중 문장. 정해 둔 문장 꼴만 읽는다 (틀린 이름이 나가는 것보다 빠지는 게 낫다):
+    ① '매출의 N% 이상이 X에서 발생' ② '주요 매출처인 X (및 Y)' ③ '주요 고객사는 … X, Y 등'.
+    이름은 원문 그대로, '한글(영문)' 짝이 있으면 한글. A사·B사처럼 가린 이름은 뺀다."""
+    alias, korean = {}, set()
+    for ko, en in re.findall(r"([가-힣][가-힣A-Za-z0-9]*(?:\s[가-힣][가-힣A-Za-z0-9]*)?)\s*\(([A-Za-z][A-Za-z0-9 .&\-]{1,30})\)", t):
+        words = ko.split()
+        if len(words) == 2 and (words[0].endswith(("인", "의", "는", "은", "와", "과", "및")) or any(g in words[0] for g in _GENERIC)):
+            ko = words[1]
+        alias.setdefault(re.sub(r"\s", "", en).lower(), ko)
+        korean.add(ko)
+    marked = set(re.findall(r"([가-힣][가-힣A-Za-z0-9]{1,20})\s*(?:㈜|\(주\))", t))
+    names, note = [], ""
+
+    def add(raw: str, strict: bool):
+        n = raw.strip()
+        if re.fullmatch(r"[A-Z]사", n) or not n or n in _NAME_STOP:
+            return
+        if re.search(r"[가-힣]", n):
+            n = _strip(n, t)
+            if any(g in n for g in _GENERIC) or (strict and n not in korean and n not in marked and t.count(n) < 3):
+                return
+        else:
+            if n in _LATIN_STOP or t.count(n) < 2:
+                return
+        n = alias.get(re.sub(r"\s", "", n).lower(), n)
+        if 2 <= len(n) <= 25 and n not in names and n not in _NAME_STOP:
+            names.append(n)
+
+    m = re.search(r"매출의\s*(\d{1,3})\s*%\s*(이상|가량|내외|수준)?\s*(?:이|가)\s*(" + NAME + r")(?:㈜|\(주\))?\s*(?:에서|으로부터|로부터)\s*발생", t)
+    if m:
+        add(m.group(3), strict=False)
+        if names:
+            note = f"매출의 {m.group(1)}%{' ' + m.group(2) if m.group(2) else ''}이 {names[0]}에서 나옴"
+    m2 = re.search(r"주요\s*매출처인\s+(" + NAME + r"(?:\s*(?:및|,)\s*" + NAME + r"){0,3})\s*향\s*매출은\s*각각\s*약?\s*(\d{1,3})\s*~\s*(\d{1,3})\s*%\s*대", t)
+    if m2 and not note:
+        group = [alias.get(re.sub(r"\s", "", x).lower(), _strip(x, t)) for x in re.split(r"\s*(?:및|,)\s*", m2.group(1)) if x.strip()]
+        note = f"{'·'.join(group)} 매출 비중이 각각 약 {m2.group(2)}~{m2.group(3)}%대"
+    for m in re.finditer(r"주요\s*(?:매출처|고객사)인\s+(" + NAME + r"(?:\s*(?:및|,)\s*" + NAME + r"){0,5})", t):
+        for x in re.split(r"\s*(?:및|,)\s*", m.group(1)):
+            add(x, strict=False)
+    for m in re.finditer(r"주요\s*(?:고객사|매출처)(?:는|로는)\s+(.{5,300}?)\s*등(?:입니다|으로|이\s|과\s|와\s)", t):
+        seg = re.sub(r"\s*\([^)]*\)", "", m.group(1))
+        seg = re.sub(r"[가-힣 ]*?(?:장비사|업체|기업|회사|제조사)인\s+", ",", seg)
+        for x in re.split(r"\s*(?:,|등과|및)\s*", seg):
+            if re.fullmatch(NAME, x.strip() or "-"):
+                add(x, strict=True)
+    return names, note
 
 
 def parse(text: str) -> DocFacts:
@@ -402,6 +474,15 @@ def parse(text: str) -> DocFacts:
                 f.glossary[c[0]] = c[-1]
         if f.glossary:
             f.found["glossary"] = f"{len(f.glossary)}개"
+
+    # 주요 고객사와 매출 비중
+    try:
+        f.customers, note = customers_from_text(t)
+        f.customer_note = note or None
+        if f.customers:
+            f.found["customers"] = ", ".join(f.customers[:6]) + (f" / {note}" if note else "")
+    except Exception:  # noqa: BLE001  고객사는 덤이라 실패해도 나머지는 그대로
+        pass
 
     # 위험: 핵심투자위험 표의 사업위험/회사위험 첫 항목
     i = _find(lines, lambda s: "핵심투자위험" in s)

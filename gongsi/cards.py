@@ -94,6 +94,9 @@ def build(facts: IpoFacts, summary: Summary, today: date | None = None, rcept_no
           doc: str = "증권신고서") -> tuple[list[Card], dict[str, str]]:
     today = today or date.today()
     derived: dict[str, str] = {}
+    # 고객사 이름(3M 같은)과 매출 비중 문장의 숫자는 증권신고서 원문 문장 그대로라 출처로 남긴다
+    for n in re.findall(r"\d[\d,]*(?:\.\d+)?", f"{facts.customers or ''} {facts.customer_note or ''}"):
+        derived.setdefault(n, f"증권신고서 원문(주요 고객사): {facts.customer_note or facts.customers}")
     dday = (date.fromisoformat(facts.subscription_start) - today).days if facts.subscription_start else None
     badge = ("오늘 청약" if dday == 0 else f"청약 D-{dday}") if dday is not None and dday >= 0 else "청약 일정 확인"
     has_demand = facts.demand_ratio is not None and facts.lockup_ratio_pct is not None
@@ -496,6 +499,11 @@ def caption(facts: IpoFacts, rcept_no: str, summary: Summary | None = None, doc:
     elif facts.industry and not hook:
         ind = facts.industry.strip()
         who += item("-", ind if ind.endswith(("회사", "기업", "업체")) else f"{ind} 회사")
+    if facts.customers:  # 주요 고객사: 원문 이름 그대로 3곳까지 (2026-10-28 사용자 요청)
+        names = [n.strip() for n in facts.customers.split(",") if n.strip()]
+        who += item("-", "주요 고객사는 " + ", ".join(names[:3]) + (" 등" if len(names) > 3 else ""))
+        if facts.customer_note:
+            who += item("→", facts.customer_note)
     if facts.revenue_krw:
         yr = f"{facts.fiscal_year}년 " if facts.fiscal_year else ""
         oi = facts.operating_income_krw

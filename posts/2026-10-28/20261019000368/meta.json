@@ -10,7 +10,7 @@
  "phase": "pre",
  "subscription_start": "2026-11-18",
  "note": "사용자 요청(2026-10-28 아침): 오전 업로드용 릴스 하나, 움직이는 영상으로",
- "telegram": {
+ "telegram_old": {
   "message_id": 33,
   "chat_id": 8647980564,
   "format": "reel"

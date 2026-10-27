@@ -193,6 +193,25 @@ def test_schedule_dates_that_contradict_subscription_are_dropped():
     assert none == [] and ok.listing_date == "2026-11-12"
 
 
+def test_major_customers_from_filing_text():
+    """2026-10-28 '공시에 주요 고객사는 안 나와?': 정해 둔 문장 꼴만 읽고, 원문 이름 그대로(한글(영문) 짝이면 한글), 가린 이름(A사)은 뺌"""
+    from gongsi.adapters.dart_doc import customers_from_text
+    t = ("당사 매출의 75% 이상이 삼성디스플레이에서 발생하고 있어 교섭력은 제한적입니다. 주요 매출처인 삼성디스플레이의 OLED 패널은 "
+         "프리미엄 스마트폰에 쓰입니다. 삼성디스플레이 향 매출. 삼성디스플레이 와의 거래.")
+    assert customers_from_text(t) == (["삼성디스플레이"], "매출의 75% 이상이 삼성디스플레이에서 나옴")
+    t2 = ("당사의 주요 고객사는 글로벌 반도체 장비사인 램리서치(LAM Research), 매슨(Mattson) 등과 국내 반도체 장비사인 세메스(SEMES) 등으로 구성되어 있습니다. "
+          "주요 매출처인 LAM Research 및 세메스 향 매출은 각각 약 30 ~ 40%대 수준으로 유지되고 있습니다. 세메스 세메스 매슨 B사와 거래.")
+    names, note = customers_from_text(t2)
+    assert names[:2] == ["램리서치", "세메스"] and "매슨" in names and "B사" not in names and "글로벌" not in names, names
+    assert note == "램리서치·세메스 매출 비중이 각각 약 30~40%대", note
+    f = IpoFacts(**DONGWON, customers=", ".join(names), customer_note=note)
+    cap = cards.caption(f, "20261023000331")
+    assert "- 주요 고객사는 램리서치, 세메스, 매슨" in cap and "→ 램리서치·세메스 매출 비중이" in cap and check_caption_layout(cap) == []
+    _, derived = cards.build(f, Summary(business_lines=["a", "b"], evidence=["a", "b"]))
+    assert "40" in derived  # 비중 숫자는 원문 문장으로 출처를 남김
+    assert customers_from_text("고객사 정보는 영업비밀로 A사, B사로 표기합니다.") == ([], "")
+
+
 def test_investment_doc_name():
     assert cards.doc_kind("[기재정정]투자설명서") == "투자설명서"
     assert cards.doc_kind("[발행조건확정]증권신고서(지분증권)") == "증권신고서"

@@ -73,7 +73,8 @@ class IpoFacts(BaseModel):
     revenue_krw: int | None = None
     operating_income_krw: int | None = None
     revenue_mix: list[RevenueMix] = Field(default_factory=list)
-    customers: str | None = None
+    customers: str | None = None  # 주요 고객사 이름 쉼표로 (증권신고서 원문 그대로)
+    customer_note: str | None = None  # 매출 비중 문장 (예: 매출의 75% 이상이 삼성디스플레이에서 나옴)
 
     use_of_proceeds: list[UseOfProceeds] = Field(default_factory=list)
     risks: list[Risk] = Field(default_factory=list)

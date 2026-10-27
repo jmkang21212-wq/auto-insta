@@ -252,5 +252,6 @@ class DartAdapter(Adapter):
             use_of_proceeds=sorted(uses, key=lambda u: -u.amount_krw),
             risks=[Risk(category=c, title=t, quote=q) for c, t, q in merged.risks],
             business_evidence=merged.business_evidence, glossary=merged.glossary,
+            customers=", ".join(merged.customers) or None, customer_note=merged.customer_note,
             raw={"documents": read, "found": merged.found, "derived": merged.derived, "api_calls": self.calls},
         )
