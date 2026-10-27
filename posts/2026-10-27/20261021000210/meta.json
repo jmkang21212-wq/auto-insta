@@ -8,5 +8,10 @@
  "format": "reel",
  "reel": "reel.mp4",
  "phase": "pre",
- "subscription_start": "2026-11-05"
+ "subscription_start": "2026-11-05",
+ "telegram": {
+  "message_id": 30,
+  "chat_id": 8647980564,
+  "format": "reel"
+ }
 }
