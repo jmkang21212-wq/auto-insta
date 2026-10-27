@@ -152,9 +152,11 @@ def build(facts: IpoFacts, summary: Summary, today: date | None = None, rcept_no
         first = {"label": "공모 규모", "value": won(facts.offering_amount_krw), "why": "이번 공모로 회사가 모으려는 돈이에요"}
     checks = [first,
               {"label": "상장 직후 유통 가능 물량", "value": pct(facts.float_ratio_pct), "why": GLOSSARY["checks"]["float"]},
-              {"label": "최소 청약 증거금 · 환불일",
-               "value": f"{facts.min_deposit_krw:,}원 · {md(facts.refund_date)}" if facts.min_deposit_krw else f"환불 {md(facts.refund_date)}",
-               "why": GLOSSARY["checks"]["deposit"]}]
+              # 확정가 전에는 최소 증거금을 계산할 수 없다 (밴드로 추정하지 않음). 그땐 환불일만, 설명도 금액을 가리키지 않게
+              ({"label": "최소 청약 증거금 · 환불일", "value": f"{facts.min_deposit_krw:,}원 · {md(facts.refund_date)}",
+                "why": GLOSSARY["checks"]["deposit"]} if facts.min_deposit_krw else
+               {"label": "증거금 환불일", "value": md(facts.refund_date),
+                "why": GLOSSARY["checks"].get("refund", "청약 때 낸 증거금 중 배정받지 못한 돈은 이날 돌려받아요")})]
     checks = [c for c in checks if "미정" not in c["value"]]  # 값이 없는 항목은 싣지 않는다
     c7 = Card(7, "checklist", f"청약 전, 이 {len(checks)}개만 확인하세요", data={"badge": badge, "checks": checks},
               role="checklist", lead="청약 전에 딱 몇 개만 확인해요 →") if checks else None
@@ -225,10 +227,12 @@ def caption(facts: IpoFacts, rcept_no: str) -> str:
         + f" · 공모 규모 {won(facts.offering_amount_krw)}" + ("" if facts.final_price_krw else " (밴드 하단 기준)") + "\n"
         + (f"상장은 {md(facts.listing_date)} 예정. 그날 시초가 결과로 다시 올게요\n\n" if facts.listing_date
            else "상장일은 아직 공시 전이에요. 정해지면 시초가 결과로 다시 올게요\n\n")
-        + ("\n".join(detail) + "\n" if detail else "")
-        + ("\n".join(notes) + "\n\n" if notes else "\n")
+        + ("\n".join(detail + notes) + "\n\n" if (detail or notes) else "")
         + f"출처: DART 증권신고서 (접수번호 {rcept_no})\n"
-        f"용어 풀이\n- {GLOSSARY['demand']['caption']}\n- {GLOSSARY['lockup']['caption']}\n- {GLOSSARY['float']['caption']}\n\n"
+        # 용어 풀이는 이번 카드에 실제로 나온 숫자만 (수요예측 전엔 경쟁률·확약 장이 없으니 설명도 뺀다)
+        + "용어 풀이\n" + "".join(f"- {GLOSSARY[k]['caption']}\n" for k, v in
+                                  (("demand", facts.demand_ratio), ("lockup", facts.lockup_ratio_pct), ("float", facts.float_ratio_pct))
+                                  if v is not None) + "\n"
         f"공시에 적힌 사실만 전해드려요. 투자 권유는 아니에요.\n"
         f"#공모주 #청약 #{facts.corp_name} #공시"
     )
