@@ -52,6 +52,8 @@ def test_explain_finds_english_glossary_key_from_korean_term():
     assert explain_line("스핀척", gl, al) == ": 스핀척은 웨이퍼를 고정 및 회전시키는 핵심 부품임"
     assert explain_line("Heater", gl, al) == ": 히터는 웨이퍼 및 장비 내부 온도를 제어하는 열 제어 부품임"  # 한글 이름으로 보여 줌
     assert explain_line("Etch", gl, al).startswith(": Etch는 플라즈마")  # 이름이 똑같은 키가 부분 일치보다 먼저
+    # 훅 용어를 '샤워헤드(Showerhead)'처럼 적어도 캡션엔 한글 이름만 (2026-10-27 Actions 실행에서 괄호째 나왔던 것)
+    assert explain_line("샤워헤드(Showerhead)", FACTS.glossary) == ": 샤워헤드는 반도체 장비 내 공정 가스를 균일하게 분사하는 핵심 부품임"
     # 해설 표에 없으면 비유가 무엇을 빗댄 건지만 밝힌다
     assert explain_line("조립품", gl, al, "반도체 '레고' 만드는 회사가 상장함") == ": '레고'는 이 회사 제품 조립품을 빗댄 말임"
     assert explain_line("조립품", gl, al) == ""

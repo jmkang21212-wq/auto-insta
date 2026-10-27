@@ -84,7 +84,8 @@ def aliases(evidence: list[str]) -> dict[str, set[str]]:
 def _gloss_key(term: str, glossary: dict[str, str], al: dict[str, set[str]] | None = None) -> str | None:
     """'샤워헤드' → 'Showerhead(샤워헤드)', '스핀척' → 'Spin Chuck'(원문 짝으로) 처럼 용어 해설 표의 키 찾기.
     이름이 똑같은 키를 먼저, 없으면 부분 일치(2글자 이상)."""
-    cands = [term] + sorted((al or {}).get(_norm(term), set()))
+    own = sorted(_names(term)) if term.strip() else []  # '샤워헤드(Showerhead)'면 통째, 샤워헤드, showerhead
+    cands = own + sorted({a for n in own for a in (al or {}).get(n, set())})
     for c in cands:
         for k in glossary:
             if _norm(c) in _names(k):
@@ -103,6 +104,12 @@ def display_term(key: str) -> str:
     return (m.group(1) if m else key).strip()
 
 
+def _korean(s: str) -> str:
+    """'샤워헤드(Showerhead)'·'Showerhead(샤워헤드)' → '샤워헤드', '스핀척' → '스핀척', 'Spin Chuck' → '' (캡션엔 한글 이름만)"""
+    m = re.match(r"^(.*?)\s*\((.*)\)\s*$", s.strip())
+    return next((p.strip() for p in ([m.group(1), m.group(2)] if m else [s]) if re.search(r"[가-힣]", p)), "")
+
+
 def _josa(word: str, a: str, b: str) -> str:
     ch = word[-1]
     return a if "가" <= ch <= "힣" and (ord(ch) - 0xAC00) % 28 else b
@@ -117,8 +124,7 @@ def metaphor(title: str) -> str:
 def explain_line(term: str, glossary: dict[str, str], al: dict[str, set[str]] | None = None, title: str = "") -> str:
     """캡션 ':' 풀이 줄: 신고서 용어 해설 문장을 그대로 붙인다 (숫자가 든 풀이는 숫자 대조 때문에 쓰지 않음).
     해설 표에 없으면 비유가 무엇을 빗댄 건지만 밝힌다 (용어는 원문에 있다는 걸 check_hook이 확인함)."""
-    korean = term if re.search(r"[가-힣]", term) else next((a for a in sorted((al or {}).get(_norm(term), set()))
-                                                            if re.search(r"[가-힣]", a)), "")
+    korean = _korean(term) or next((k for a in sorted((al or {}).get(_norm(term), set())) if (k := _korean(a))), "")
     key = _gloss_key(term, glossary, al)
     if key and not re.search(r"\d", glossary[key]):
         name = korean or display_term(key)
