@@ -20,7 +20,8 @@ ROOT = Path(__file__).resolve().parents[1]
 # 실제 공시값: 동원파츠 [기재정정]증권신고서 20261023000331 (수요예측 전)
 DONGWON = dict(corp_name="동원파츠", market="코스닥", industry="반도체 장비 부품", band_low_krw=23000, band_high_krw=26500,
                subscription_start="2026-11-02", subscription_end="2026-11-03", forecast_start="2026-10-22",
-               forecast_end="2026-10-28", refund_date="2026-11-05", float_ratio_pct=29.47, offering_amount_krw=46690000000)
+               forecast_end="2026-10-28", refund_date="2026-11-05", float_ratio_pct=29.47, offering_amount_krw=46690000000,
+               underwriters=["삼성증권"], min_shares=20, deposit_rate_pct=50)  # 최소 20주, 증거금률 50%
 
 
 def sample() -> IpoFacts:
@@ -37,7 +38,10 @@ def body(cap: str) -> str:
 
 def assert_clean(cap: str, facts: IpoFacts) -> None:
     assert check_caption_layout(cap) == [], check_caption_layout(cap)
-    assert check_numbers([body(cap)], facts) == [], check_numbers([body(cap)], facts)
+    derived: dict[str, str] = {}
+    cards.deposit_text(facts, derived)  # pipeline과 같게: 계산값은 derived에 계산식이 있으면 통과
+    bad = [p for p in check_numbers([body(cap)], facts) if not any(f"'{k}'" in p for k in derived)]
+    assert bad == [], bad
     assert check_forbidden([body(cap)]) == []
     blocks = cap.split("\n\n")
     assert blocks[0].split("\n")[0] == f"{facts.corp_name} 공모주 청약"
@@ -49,10 +53,15 @@ def test_pre_forecast_real():
     f = IpoFacts(**DONGWON)
     cap = cards.caption(f, "20261023000331")
     assert_clean(cap, f)
-    assert "11월 2일(월)~3일(화)" in cap
+    lines = cap.split("\n")
+    assert lines[1] == "상장일 유통 가능 물량 29.47%"  # 둘째 줄 = 훅 숫자 ('더 보기' 전 미리보기)
+    assert cap.count("29.47%") == 1  # 훅에 쓴 숫자는 다시 안 씀
+    assert "청약일 11월 2일(월)~3일(화)" in cap
+    assert "청약 증권사 삼성증권" in cap
     assert "희망 공모가 23,000~26,500원" in cap
+    assert "최소 증거금 23만~26.5만원 (밴드 기준)" in cap
     assert "수요예측 10월 22일(목)~28일(수)" in cap
-    assert "결과 나오면 다시 정리해서 올릴게요." in cap
+    assert "결과 나오면 경쟁률·확약으로 다시 올릴게요." in cap
     assert "댓글" not in cap and "저장" not in cap  # 질문·저장 유도는 카드 10장에만
 
 
@@ -60,8 +69,12 @@ def test_post_forecast_sample():
     f = sample()
     cap = cards.caption(f, "20261026999001")
     assert_clean(cap, f)
+    assert cap.split("\n")[1] == "기관 경쟁률 1,134.5:1, 확약 5.2%"
+    assert cap.count("1,134.5:1") == 1 and cap.count("5.2%") == 1
     assert "확정 공모가 21,000원 (밴드 맨 위)" in cap
-    assert "수요예측 경쟁률 1,134.5:1" in cap
+    assert "청약 증권사 삼성증권, KB증권" in cap
+    assert "최소 증거금 21만원" in cap
+    assert "상장일 유통 가능 물량 31.4%" in cap
     assert "상장 예정일 11월 12일(목)" in cap
     assert "결과 나오면" not in cap
 
@@ -101,6 +114,16 @@ def test_layout_check_catches_old_style():
     assert any("문장이 둘 이상" in p for p in problems)
     assert any("휴대폰 한 줄" in p for p in problems)
     assert any("빈 줄이 두 번" in p for p in problems)
+
+
+def test_deposit_and_brokers():
+    assert cards.man(230000) == "23만" and cards.man(265000) == "26.5만" and cards.man(1375000) == "137.5만"
+    f = IpoFacts(**{**DONGWON, "underwriters": ["한국투자증권", "NH투자증권", "KB증권", "신한투자증권"]})
+    assert cards.broker_text(f) == "청약 증권사 한국투자증권, NH투자증권 외 2곳"
+    d: dict[str, str] = {}
+    cards.deposit_text(f, d)
+    assert "26.5" in d and "min_shares 20" in d["26.5"]
+    assert cards.deposit_text(IpoFacts(**{**DONGWON, "deposit_rate_pct": None})) == ""  # 증거금률을 못 읽으면 줄을 안 씀
 
 
 def test_investment_doc_name():

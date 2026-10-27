@@ -66,6 +66,7 @@ class IpoFacts(BaseModel):
 
     underwriters: list[str] = Field(default_factory=list)
     min_shares: int | None = None
+    deposit_rate_pct: int | None = None  # 일반청약 증거금률 (신고서 "청약증거금은 청약금액의 N%")
     min_deposit_krw: int | None = None
 
     fiscal_year: int | None = None  # revenue_krw·operating_income_krw의 결산연도

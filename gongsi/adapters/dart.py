@@ -247,7 +247,7 @@ class DartAdapter(Adapter):
             subscription_start=merged.subscription_start or sub_start, subscription_end=merged.subscription_end or sub_end,
             refund_date=merged.refund_date or _kdate(general.get("pymd")), listing_date=merged.listing_date,
             underwriters=merged.underwriters or api_underwriters,
-            min_shares=merged.min_shares, min_deposit_krw=merged.min_deposit_krw,
+            min_shares=merged.min_shares, deposit_rate_pct=merged.deposit_rate_pct, min_deposit_krw=merged.min_deposit_krw,
             fiscal_year=merged.fiscal_year, revenue_krw=merged.revenue_krw, operating_income_krw=merged.operating_income_krw,
             use_of_proceeds=sorted(uses, key=lambda u: -u.amount_krw),
             risks=[Risk(category=c, title=t, quote=q) for c, t, q in merged.risks],

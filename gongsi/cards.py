@@ -165,6 +165,7 @@ def build(facts: IpoFacts, summary: Summary, today: date | None = None, rcept_no
                {"label": "증거금 환불일", "value": md(facts.refund_date),
                 "why": GLOSSARY["checks"].get("refund", "청약 때 낸 증거금 중 배정받지 못한 돈은 이날 돌려받아요")})]
     checks = [c for c in checks if "미정" not in c["value"]]  # 값이 없는 항목은 싣지 않는다
+    deposit_text(facts, derived)  # 캡션의 최소 증거금(만 원 단위·밴드 범위) 계산식을 검증용으로 남긴다
     c7 = Card(7, "checklist", f"청약 전, 이 {len(checks)}개만 확인하세요", data={"badge": badge, "checks": checks},
               role="checklist", lead="청약 전에 딱 몇 개만 확인해요 →") if checks else None
 
@@ -256,6 +257,36 @@ def band_pos(final: int | None, low: int | None, high: int | None) -> str:
     return "밴드 안"
 
 
+def man(v: int) -> str:
+    """230000 → '23만', 265000 → '26.5만' (만 원 단위. 증거금처럼 사람이 '몇 만 원'으로 읽는 금액용)"""
+    return f"{v / 10_000:,g}만"
+
+
+def deposit_text(facts: IpoFacts, derived: dict[str, str] | None = None) -> str:
+    """최소 청약 증거금 한 줄. 확정가가 있으면 그 값, 없으면 희망 밴드 양 끝으로 계산한 범위('밴드 기준'이라고 밝힘).
+    다른 공모주 글들이 청약 전에 꼭 넣는 항목이라 캡션에 싣는다(2026-10-27). derived를 주면 계산식을 남긴다."""
+    if facts.min_deposit_krw:
+        s = man(facts.min_deposit_krw)
+        if derived is not None:
+            derived[s[:-1]] = f"min_deposit {facts.min_deposit_krw:,} / 10,000"
+        return f"최소 증거금 {s}원"
+    if facts.min_shares and facts.deposit_rate_pct and facts.band_low_krw and facts.band_high_krw:
+        ends = [facts.min_shares * p * facts.deposit_rate_pct // 100 for p in (facts.band_low_krw, facts.band_high_krw)]
+        if derived is not None:
+            for v, p in zip(ends, (facts.band_low_krw, facts.band_high_krw)):
+                derived[man(v)[:-1]] = f"min_shares {facts.min_shares} * band {p:,} * {facts.deposit_rate_pct}% = {v:,}"
+        return f"최소 증거금 {man(ends[0])}~{man(ends[1])}원 (밴드 기준)"
+    return ""
+
+
+def broker_text(facts: IpoFacts) -> str:
+    """청약 증권사: 신고서 공모개요의 대표주관·공동주관·인수회사 (일반청약은 이 증권사들에서 받는다)"""
+    u = facts.underwriters
+    if not u:
+        return ""
+    return "청약 증권사 " + ", ".join(u[:2]) + (f" 외 {len(u) - 2}곳" if len(u) > 2 else "")
+
+
 def _ieyo(word: str) -> str:
     """받침 있으면 '이에요', 없으면 '예요' (한글이 아닌 끝 글자는 '예요')"""
     ch = word[-1]
@@ -263,41 +294,57 @@ def _ieyo(word: str) -> str:
 
 
 def caption(facts: IpoFacts, rcept_no: str, summary: Summary | None = None, doc: str = "증권신고서") -> str:
-    """인스타 캡션. 2026-10-27 '말투가 AI 같고 줄바꿈이 제멋대로' 피드백으로 다시 짬.
+    """인스타 캡션. 2026-10-27 '말투가 AI 같고 줄바꿈이 제멋대로' 피드백으로 다시 짰고,
+    같은 날 다른 공모주 글(알파스퀘어 인사이트, 글래스월렛, 토스뱅크)을 참고해 고쳤다.
+    - 다른 글들은 제목에 숫자 하나로 훅을 건다("경쟁률 868대 1인데 확약은 4%"). → 둘째 줄을 훅 숫자로
+    - 다른 글들은 청약 실무 숫자(청약 증권사, 최소 증거금)를 꼭 넣는다. → 숫자 덩어리에 추가
+    - 훅에 쓴 숫자는 아래에서 다시 쓰지 않는다
 
     규칙 (verify.check_caption_layout이 검사):
     - 덩어리(제목 / 숫자 / 일정 / 출처 / 해시태그) 사이에만 빈 줄 하나. 덩어리 안에는 빈 줄 없음
     - 한 줄에 한 가지: 숫자는 '이름 값' 한 줄, 문장은 한 줄에 한 문장. 휴대폰 한 줄을 넘지 않는 길이
     - 숫자 줄은 명사형으로 짧게. '~요' 문장은 회사 소개 한 줄과 다음 소식 한 줄, 면책 한 줄뿐
     - 질문·저장 유도 문구는 카드 10장에 이미 있어 캡션에서 뺌. 구현 안 된 약속(상장일 결과 게시)도 쓰지 않음
-    - 첫 두 줄(회사명 공모주 청약 / 청약일)이 '더 보기' 전 미리보기와 검색에 걸리는 부분
-    - 숫자는 전부 facts에서 (pipeline이 카드와 같은 기준으로 대조). 해시태그는 게시물당 5개까지(2025.12~)
+    - 첫 두 줄(회사명 공모주 청약 / 훅 숫자)이 '더 보기' 전 미리보기와 검색에 걸리는 부분
+    - 숫자는 전부 facts·derived에서 (pipeline이 카드와 같은 기준으로 대조). 해시태그는 게시물당 5개까지(2025.12~)
     """
     corp = facts.corp_name
-    blocks: list[list[str]] = [[f"{corp} 공모주 청약", kdays(facts.subscription_start, facts.subscription_end)]]
+    has_band = bool(facts.band_low_krw and facts.band_high_krw)
+    if facts.demand_ratio is not None and facts.lockup_ratio_pct is not None:
+        hook, used = f"기관 경쟁률 {ratio(facts.demand_ratio)}, 확약 {pct(facts.lockup_ratio_pct)}", {"demand", "lockup"}
+    elif facts.demand_ratio is not None:
+        hook, used = f"기관 경쟁률 {ratio(facts.demand_ratio)}", {"demand"}
+    elif facts.float_ratio_pct is not None:
+        hook, used = f"상장일 유통 가능 물량 {pct(facts.float_ratio_pct)}", {"float"}
+    elif has_band and not facts.final_price_krw:
+        hook, used = f"희망 공모가 {facts.band_low_krw:,}~{facts.band_high_krw:,}원", {"price"}
+    else:
+        hook, used = "", set()
+    blocks: list[list[str]] = [[f"{corp} 공모주 청약", hook]]
 
     nums: list[str] = []
     if facts.industry:
         ind = facts.industry.strip()
         nums.append(f"{ind}{_ieyo(ind)}." if ind.endswith(("회사", "기업", "업체")) else f"{ind} 회사예요.")
+    nums.append(f"청약일 {kdays(facts.subscription_start, facts.subscription_end)}" if facts.subscription_start else "")
+    nums.append(broker_text(facts))
     if facts.final_price_krw:
         pos = band_pos(facts.final_price_krw, facts.band_low_krw, facts.band_high_krw)
         nums.append(f"확정 공모가 {facts.final_price_krw:,}원" + (f" ({pos})" if pos else ""))
-    elif facts.band_low_krw and facts.band_high_krw:
+    elif has_band and "price" not in used:
         nums.append(f"희망 공모가 {facts.band_low_krw:,}~{facts.band_high_krw:,}원")
-    if facts.demand_ratio is not None:
-        nums.append(f"수요예측 경쟁률 {ratio(facts.demand_ratio)}")
-    if facts.lockup_ratio_pct is not None:
+    nums.append(deposit_text(facts))
+    if facts.demand_ratio is not None and "demand" not in used:
+        nums.append(f"기관 경쟁률 {ratio(facts.demand_ratio)}")
+    if facts.lockup_ratio_pct is not None and "lockup" not in used:
         nums.append(f"의무보유 확약 {pct(facts.lockup_ratio_pct)}")
-    if facts.float_ratio_pct is not None:
-        nums.append(f"상장 직후 유통 가능 물량 {pct(facts.float_ratio_pct)}")
-    if facts.min_deposit_krw:
-        nums.append(f"최소 청약 증거금 {facts.min_deposit_krw:,}원")
+    if facts.float_ratio_pct is not None and "float" not in used:
+        nums.append(f"상장일 유통 가능 물량 {pct(facts.float_ratio_pct)}")
     blocks.append(nums)
 
     if facts.demand_ratio is None:  # 수요예측 전: 언제 끝나는지 + 결과가 나오면 다시 올린다(발행조건확정 공시로 2차 게시가 실제로 돈다)
         when = [f"수요예측 {kdays(facts.forecast_start, facts.forecast_end)}"] if facts.forecast_start else []
-        blocks.append(when + ["결과 나오면 다시 정리해서 올릴게요."])
+        blocks.append(when + ["결과 나오면 경쟁률·확약으로 다시 올릴게요."])
     else:  # 수요예측 뒤: 청약 다음 일정
         blocks.append([f"환불일 {kdate(facts.refund_date)}"] * bool(facts.refund_date)
                       + [f"상장 예정일 {kdate(facts.listing_date)}"] * bool(facts.listing_date))
