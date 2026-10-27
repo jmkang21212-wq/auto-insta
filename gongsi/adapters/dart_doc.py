@@ -156,6 +156,7 @@ class DocFacts:
     use_of_proceeds: list[tuple[str, int]] = field(default_factory=list)
     risks: list[tuple[str, str, str]] = field(default_factory=list)  # (category, title, body)
     business_evidence: list[str] = field(default_factory=list)
+    glossary: dict[str, str] = field(default_factory=dict)  # 신고서 '전문용어 해설' 표: 용어 → 뜻 (훅·캡션 풀이의 근거)
     derived: dict[str, str] = field(default_factory=dict)  # 계산값 → 공식
     found: dict[str, str] = field(default_factory=dict)  # 항목 → 어디서 찾았는지 (로그용)
 
@@ -387,6 +388,20 @@ def parse(text: str) -> DocFacts:
                 if 25 <= len(sent) <= 300 and sent.endswith("다.") and not re.search(r"\.(jpg|png|gif)", sent):
                     f.business_evidence.append(sent)
         f.business_evidence = f.business_evidence[:25]
+
+    # 전문용어 해설 표 ('용어 | 내용'): 회사가 직접 쓴 쉬운 뜻풀이. 훅의 비유와 캡션 ':' 풀이 줄의 근거로 쓴다
+    i = _find(lines, lambda s: "전문용어" in s and "해설" in s)
+    if i >= 0:
+        for ln in lines[i + 1:i + 250]:
+            if not ln.startswith("|"):
+                if f.glossary:
+                    break
+                continue
+            c = [x for x in _cells(ln) if x]
+            if len(c) >= 2 and c[0] not in ("용어", "용어명", "구분") and 4 <= len(c[-1]) <= 200:
+                f.glossary[c[0]] = c[-1]
+        if f.glossary:
+            f.found["glossary"] = f"{len(f.glossary)}개"
 
     # 위험: 핵심투자위험 표의 사업위험/회사위험 첫 항목
     i = _find(lines, lambda s: "핵심투자위험" in s)

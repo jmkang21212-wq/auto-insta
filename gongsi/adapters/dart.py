@@ -191,7 +191,7 @@ class DartAdapter(Adapter):
             read.append(f"{r['rcept_no']}:{r['report_nm']}")
             for k, v in got.__dict__.items():
                 cur = getattr(merged, k)
-                if k in ("derived", "found"):
+                if k in ("derived", "found", "glossary"):
                     cur.update({kk: vv for kk, vv in v.items() if kk not in cur})
                 elif cur in (None, [], "") and v not in (None, [], ""):
                     setattr(merged, k, v)
@@ -251,6 +251,6 @@ class DartAdapter(Adapter):
             fiscal_year=merged.fiscal_year, revenue_krw=merged.revenue_krw, operating_income_krw=merged.operating_income_krw,
             use_of_proceeds=sorted(uses, key=lambda u: -u.amount_krw),
             risks=[Risk(category=c, title=t, quote=q) for c, t, q in merged.risks],
-            business_evidence=merged.business_evidence,
+            business_evidence=merged.business_evidence, glossary=merged.glossary,
             raw={"documents": read, "found": merged.found, "derived": merged.derived, "api_calls": self.calls},
         )

@@ -80,6 +80,7 @@ class IpoFacts(BaseModel):
 
     # 원문에서 뽑은 문장들. LLM 요약의 근거 대조에만 쓰고 카드에는 직접 안 나감
     business_evidence: list[str] = Field(default_factory=list)
+    glossary: dict[str, str] = Field(default_factory=dict)  # 신고서 전문용어 해설 표 (용어 → 뜻)
 
     raw: dict = Field(default_factory=dict)  # API 응답 원본 (fact.fields에 보관)
 
@@ -111,7 +112,7 @@ class IpoFacts(BaseModel):
                     nums.add(tok)
 
         for name, val in self.model_dump().items():
-            if name in ("raw", "business_evidence", "risks"):
+            if name in ("raw", "business_evidence", "risks", "glossary"):
                 continue
             if isinstance(val, list):
                 for item in val:

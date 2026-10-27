@@ -348,7 +348,8 @@ EXPLAIN = {
 }
 
 
-def caption(facts: IpoFacts, rcept_no: str, summary: Summary | None = None, doc: str = "증권신고서") -> str:
+def caption(facts: IpoFacts, rcept_no: str, summary: Summary | None = None, doc: str = "증권신고서",
+            hook=None) -> str:
     """인스타 캡션. 카드(또는 릴스)는 훅, 자세한 내용은 캡션에서 (ekke.now 방식, 2026-10-27 사용자 제안).
 
     2026-10-27 피드백을 거쳐 지금 모양이 됐다.
@@ -373,8 +374,12 @@ def caption(facts: IpoFacts, rcept_no: str, summary: Summary | None = None, doc:
     # 1. 제목 + 핵심
     first: list[str] = []
     if facts.demand_ratio is not None:  # 수요예측 뒤
-        first.append(_fit(f"📢 {corp} 경쟁률 {ratio(facts.demand_ratio)} 나옴", f"📢 {corp} 수요예측 결과 나옴"))
-        first += item("-", f"기관 경쟁률 {ratio(facts.demand_ratio)}")
+        if hook:  # 훅(회사 개요 비유) → 신고서 용어 풀이 → 주인공 회사와 경쟁률
+            first += wrap(hook.headline()) + (wrap(hook.explain) if hook.explain else [])
+            first += item("-", f"주인공은 {corp}, 기관 경쟁률 {ratio(facts.demand_ratio)}")
+        else:
+            first.append(_fit(f"📢 {corp} 경쟁률 {ratio(facts.demand_ratio)} 나옴", f"📢 {corp} 수요예측 결과 나옴"))
+            first += item("-", f"기관 경쟁률 {ratio(facts.demand_ratio)}")
         first += wrap(EXPLAIN["demand"].format(x=f"{facts.demand_ratio:,g}"))
         if facts.lockup_ratio_pct is not None:
             first += item("-", f"의무보유 확약은 {pct(facts.lockup_ratio_pct)}")
@@ -388,10 +393,15 @@ def caption(facts: IpoFacts, rcept_no: str, summary: Summary | None = None, doc:
     else:  # 수요예측 전
         when = f"{start.month}월 {start.day}일" if start else ""
         ind = (facts.industry or "").strip()
-        first.append(_fit(f"🔔 {ind} {corp}, {when} 청약 열림" if ind and when else "",
-                          f"🔔 {corp}, {when} 청약 열림" if when else "", f"🔔 {corp} 공모주 청약 열림"))
-        if days:
-            first += item("-", f"{facts.market + ' ' if facts.market else ''}상장 앞두고 {days} 일반 청약")
+        if hook:  # 훅(회사 개요 비유) → 신고서 용어 풀이 → 주인공 회사와 청약일
+            first += wrap(hook.headline()) + (wrap(hook.explain) if hook.explain else [])
+            if days:
+                first += item("-", f"주인공은 {corp}, {days} 청약")
+        else:
+            first.append(_fit(f"🔔 {ind} {corp}, {when} 청약 열림" if ind and when else "",
+                              f"🔔 {corp}, {when} 청약 열림" if when else "", f"🔔 {corp} 공모주 청약 열림"))
+            if days:
+                first += item("-", f"{facts.market + ' ' if facts.market else ''}상장 앞두고 {days} 일반 청약")
         if facts.float_ratio_pct is not None:
             first += item("-", f"상장일 유통 가능 물량은 {pct(facts.float_ratio_pct)}")
             first += wrap(EXPLAIN["float"])
@@ -404,7 +414,7 @@ def caption(facts: IpoFacts, rcept_no: str, summary: Summary | None = None, doc:
 
     # 2. 어떤 회사인지 (업종 + 신고서 실적)
     who: list[str] = []
-    if facts.industry:
+    if facts.industry and not hook:
         ind = facts.industry.strip()
         who += item("-", ind if ind.endswith(("회사", "기업", "업체")) else f"{ind} 회사")
     if facts.revenue_krw:
