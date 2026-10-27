@@ -64,11 +64,15 @@ def test_second_line_numbers():
 def test_video_tag_scoring():
     words = _keywords("shower head water flowing")
     assert words == ["shower", "head"]
-    assert _score("shower head, watercourse, water, shower", words) == 3
-    assert _score("water, flow, rush, waterfall, showers", words) == 1  # 'showers'는 폭포 영상이라 안 씀(2 미만)
+    assert _score("shower head, watercourse, water, shower", words) == 4  # 두 단어 모두 + '두 단어 그대로'
+    assert _score("water, flow, rush, waterfall, showers", words) == 0  # 핵심 명사 하나만 맞으면 안 씀
     assert _score("ocean, sea, wave, water", words) == 0
-    assert _score("woman, shower, bathing, soap", words) == 2 and _has_people("woman, shower, bathing, soap")  # 사람은 허용
-    assert _score("woman, shower, seductive, glamour", words) == -1  # 선정적인 장면만 제외
+    assert _score("woman, shower head, bathing, soap", words) >= 2 and _has_people("woman, shower, bathing, soap")  # 사람은 허용
+    assert _score("woman, shower head, seductive, glamour", words) == -1  # 선정적인 장면만 제외
+    coil = _keywords("electric heating coil glowing")
+    assert _score("space, galaxy, electric, nebula", coil) == 0  # 'electric' 하나만 맞는 우주 영상
+    assert _score("heating, coil, red, hot, metal", coil) == 2
+    assert _score("pizza, slice, food", _keywords("pizza slices closeup")) == 2  # 복수형도 맞춤
 
 
 def test_title_split_two_balanced_lines():

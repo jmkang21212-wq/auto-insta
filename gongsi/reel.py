@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -54,53 +55,81 @@ PEOPLE = {"woman", "man", "girl", "boy", "people", "person", "lady", "portrait",
 UNFIT = {"seductive", "glamour", "sexy", "sensual", "erotic", "nude", "naked", "lingerie", "bikini", "underwear", "swimsuit"}
 
 
+def _stem(w: str) -> str:
+    return w[:-1] if len(w) > 4 and w.endswith("s") else w  # slices → slice, coils → coil
+
+
 def _score(tags: str, words: list[str]) -> int:
-    """태그가 훅의 물건과 얼마나 맞는지: 3 '두 단어 그대로'(shower head), 2 '첫 명사 그대로'(shower),
-    1 '첫 명사가 들어간 다른 말'(rain shower), 0 없음, -1 금융 계정에 안 맞는 장면"""
+    """태그가 훅의 물건과 얼마나 맞는지. 검색어 핵심 명사가 태그에 몇 개 들어 있는지 세고,
+    '두 단어 그대로'(shower head)면 2점 더한다. 핵심 명사가 2개 이상이면 2개 이상 맞아야 쓴다
+    ('electric heating coil'인데 'electric'만 맞는 우주 영상 같은 걸 막음). 금융 계정에 안 맞는 장면은 -1"""
     toks = [t.strip().lower() for t in tags.split(",")]
     if any(w in UNFIT for t in toks for w in t.split()):
         return -1
-    if len(words) > 1 and " ".join(words[:2]) in toks:
-        return 3
-    if words[0] in toks:
-        return 2
-    return 1 if any(words[0] in t for t in toks) else 0
+    hits = sum(1 for w in words if any(_stem(w) in t for t in toks))
+    if hits < min(2, len(words)):
+        return 0
+    return hits + (2 if len(words) > 1 and " ".join(words[:2]) in toks else 0)
 
 
 def _has_people(tags: str) -> bool:
     return any(w in PEOPLE for t in tags.lower().split(",") for w in t.split())
 
 
-def find_video(query: str, skip: set[str] | None = None) -> tuple[Path, dict] | None:
-    """Pixabay 영상 검색 → 아직 안 쓴 영상 중 훅의 물건이 태그에 가장 잘 맞는 것을 받아 둔다.
-    검색어를 넓혀 가며(전체 → 핵심 명사들 → 첫 명사) 모으고, 점수 2 이상만 쓴다(짧은 영상은 반복 재생)."""
+def video_ok(thing: str, query: str, thumb: bytes) -> bool | None:
+    """Claude 비전으로 영상 첫 장면 확인: 훅이 빗댄 물건이 화면 주인공인가. 키가 없으면 None(확인 생략).
+    태그만 보면 'electric heating coil'에 일렉 기타 영상이 걸리는 식의 오답이 남아서 넣었다."""
+    if not settings.anthropic_api_key:
+        return None
+    import base64
+
+    import anthropic
+    from gongsi.summarize import MODEL
+
+    msg = anthropic.Anthropic(api_key=settings.anthropic_api_key).messages.create(model=MODEL, max_tokens=1500, messages=[{
+        "role": "user", "content": [
+            {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": base64.b64encode(thumb).decode()}},
+            {"type": "text", "text": f"이 영상 첫 장면에 '{thing}'(검색어: {query}) 또는 그것과 아주 비슷한 물건이 화면 주인공으로 크게 보이나요?\n"
+                                     "다음이 있으면 '아니오': 다른 물건이 주인공, 읽을 수 있는 브랜드 로고·제품명 글자, 선정적인 장면, 저화질.\n"
+                                     "'예' 또는 '아니오'만 답하세요."}]}])
+    return "".join(b.text for b in msg.content if getattr(b, "type", "") == "text").strip().startswith("예")
+
+
+def find_video(query: str, skip: set[str] | None = None, thing: str = "") -> tuple[Path, dict] | None:
+    """Pixabay 영상 검색 → 아직 안 쓴 영상 중 태그가 훅의 물건과 맞는 순서로, 첫 장면을 비전으로 확인해 통과한 것을 받는다.
+    검색어를 넓혀 가며(전체 → 핵심 명사들 → 첫 명사) 모으고, 짧은 영상은 반복 재생한다."""
     key = os.getenv("PIXABAY_API_KEY", "")
     words = _keywords(query)
     if not key or not words:
         return None
     skip = skip if skip is not None else used_ids()
-    best = None
+    cands: dict[str, tuple] = {}
     for q in dict.fromkeys([query, " ".join(words), words[0]]):
         r = requests.get("https://pixabay.com/api/videos/", params={"key": key, "q": q, "per_page": 50, "safesearch": "true"}, timeout=30)
         for hit in r.json().get("hits", []):
             v = hit["videos"].get("medium") or hit["videos"].get("small")
-            if f"pixabay:{hit['id']}" in skip or not v or not v.get("url") or min(v["width"], v["height"]) < 540 or hit.get("duration", 0) < 4:
+            mid = f"pixabay:{hit['id']}"
+            if mid in skip or mid in cands or not v or not v.get("url") or min(v["width"], v["height"]) < 540 or hit.get("duration", 0) < 4:
                 continue
-            # 사람이 나와도 쓴다. 다만 물건이 주인공인 훅이면 같은 점수에서 사람 없는 영상을 먼저 고른다
+            # 사람이 나와도 쓴다. 다만 같은 점수면 사람 없는 영상을 먼저 고른다
             rank = (_score(hit.get("tags", ""), words), not _has_people(hit.get("tags", "")), min(v["width"], v["height"]))
-            if rank[0] >= 2 and (best is None or rank > best[0]):
-                best = (rank, hit, v, q)
-    if not best:
-        return None
-    _, hit, v, q = best
-    CACHE.mkdir(parents=True, exist_ok=True)
-    path = CACHE / f"pixabay_{hit['id']}.mp4"
-    if not path.exists():
-        path.write_bytes(requests.get(v["url"], timeout=120).content)
-    meta = {"id": f"pixabay:{hit['id']}", "query": q, "user": hit.get("user"), "page": hit.get("pageURL"),
-            "tags": hit.get("tags"), "people": _has_people(hit.get("tags", "")), "license": "Pixabay Content License"}
-    path.with_suffix(".json").write_text(json.dumps(meta, ensure_ascii=False), encoding="utf-8")
-    return path, meta
+            if rank[0] >= 1:
+                cands[mid] = (rank, hit, v, q)
+    for rank, hit, v, q in sorted(cands.values(), key=lambda c: c[0], reverse=True)[:6]:
+        thumb_url = (hit["videos"].get("small") or v).get("thumbnail")
+        verdict = video_ok(thing or query, query, requests.get(thumb_url, timeout=30).content) if thumb_url else None
+        if verdict is False:
+            continue
+        CACHE.mkdir(parents=True, exist_ok=True)
+        path = CACHE / f"pixabay_{hit['id']}.mp4"
+        if not path.exists():
+            path.write_bytes(requests.get(v["url"], timeout=120).content)
+        meta = {"id": f"pixabay:{hit['id']}", "query": q, "user": hit.get("user"), "page": hit.get("pageURL"),
+                "tags": hit.get("tags"), "people": _has_people(hit.get("tags", "")), "vision": verdict,
+                "license": "Pixabay Content License"}
+        path.with_suffix(".json").write_text(json.dumps(meta, ensure_ascii=False), encoding="utf-8")
+        return path, meta
+    return None
 
 
 def split_title(text: str, max_w: float = 11.0) -> list[str]:
@@ -161,9 +190,15 @@ def compose(video: Path, overlay: Path, out: Path, seconds: int = SECONDS) -> Pa
     return out
 
 
+def thing_of(title: str) -> str:
+    """훅 제목에서 빗댄 물건: "반도체 '샤워기' 만드는…" → 샤워기"""
+    m = re.search(r"'([^']+)'", title)
+    return m.group(1) if m else ""
+
+
 def make_reel(title: str, second: str, sub: str, query: str, out: Path) -> dict:
     """훅 릴스 한 편. 쓴 영상은 used_media에 남긴다. 돌려주는 meta는 캡션 '📷 자료 화면' 줄과 로그용"""
-    found = find_video(query)
+    found = find_video(query, thing=thing_of(title))
     if not found:
         raise RuntimeError(f"'{query}' 영상을 못 찾음")
     video, meta = found

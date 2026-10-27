@@ -105,8 +105,21 @@ def run(adapter: Adapter, date_from: str, date_to: str, only_rcept: str | None, 
             except Exception as e:  # noqa: BLE001
                 hooks = []
                 log("hook", corp=d.corp_name, ok=False, error=str(e)[:200])
-            hook = hooks[0] if hooks else None
             log("hook", corp=d.corp_name, hooks=[f"{h.headline()} / {h.sub} / {h.video}" for h in hooks])
+            # 훅 릴스: 위 훅 + 둘째 줄 숫자, 가운데 훅의 물건 스톡 영상 + 자막. 1번 훅에 맞는 영상이 없으면 2·3번으로,
+            # 셋 다 없으면 릴스 없이 카드 캐러셀로 간다. 캡션도 실제로 쓴 훅으로 만든다
+            out = settings.out_dir / f"run{run_id}"
+            out.mkdir(parents=True, exist_ok=True)
+            second = line2(facts)
+            hook, chosen, reel_meta = (hooks[0] if hooks else None), 0, None
+            for i, h in enumerate(hooks if os.getenv("REELS", "1") != "0" else []):
+                try:
+                    reel_meta = make_reel(h.title, f"({second})" if second else "", h.sub, h.video, out / f"{d.rcept_no}_reel.mp4")
+                    hook, chosen = h, i
+                    break
+                except Exception as e:  # noqa: BLE001
+                    log("reel", corp=d.corp_name, hook=i + 1, ok=False, error=str(e)[:200])
+            log("reel", corp=d.corp_name, ok=bool(reel_meta), hook=chosen + 1 if reel_meta else None, video=reel_meta)
 
             # 5. 검증
             db.stage(run_id, "verify")
@@ -121,11 +134,11 @@ def run(adapter: Adapter, date_from: str, date_to: str, only_rcept: str | None, 
                 problems.append(f"매출 숫자가 원문에 {occ}번만 나옴 (열 선택 오류 의심)")
             problems += check_forbidden(summary.business_lines + [facts.industry or ""] + [l for pair in summary.risk_lines for l in pair])
             # 캡션도 카드와 같은 기준으로: 숫자는 facts·derived에서만 (출처 줄의 접수번호는 제외), 금지어 없음, 줄바꿈 규칙
-            cap = cardmod.caption(facts, d.rcept_no, summary, doc, hook, credit="📷 자료 화면: Pixabay")
+            cap = cardmod.caption(facts, d.rcept_no, summary, doc, hook, credit="📷 자료 화면: Pixabay" if reel_meta else "")
             # 숫자·금지어 대조는 위험 덩어리를 뺀 판으로: 위험 소제목은 원문 그대로(인용), 쉬운 말 요약은 check_risks가 원문과 따로 대조
             cap_check = cardmod.caption(facts.model_copy(update={"risks": []}), d.rcept_no,
                                         summary.model_copy(update={"risk_lines": []}), doc, hook).replace(d.rcept_no, "")
-            second = line2(facts)  # 릴스 화면 둘째 줄 숫자도 같은 기준으로
+            # 릴스 화면 둘째 줄 숫자(second)도 같은 기준으로 대조
             problems += [f"캡션: {p}" for p in check_numbers([cap_check, second], facts) if not any(f"'{k}'" in p for k in allowed_derived)]
             problems += [f"캡션: {p}" for p in check_forbidden([cap_check])]
             problems += [f"캡션: {p}" for p in check_caption_layout(cap)]
@@ -142,22 +155,11 @@ def run(adapter: Adapter, date_from: str, date_to: str, only_rcept: str | None, 
             logo_path, logo_how = fetch_logo(facts.corp_name, facts.homepage)
             log("logo", corp=d.corp_name, homepage=facts.homepage, result=logo_how)
             paths, image_log = render(card_list, facts.corp_name, facts.industry or "", out, d.rcept_no)
-            # 훅 릴스: 위 훅 + 둘째 줄 숫자, 가운데 훅의 물건 스톡 영상 + 자막. 못 만들면 캐러셀로 간다
-            reel_meta = None
-            if hook and os.getenv("REELS", "1") != "0":
-                try:
-                    reel_meta = make_reel(hook.title, f"({second})" if second else "", hook.sub, hook.video,
-                                          out / f"{d.rcept_no}_reel.mp4")
-                except Exception as e:  # noqa: BLE001
-                    log("reel", corp=d.corp_name, ok=False, error=str(e)[:200])
-            if not reel_meta:
-                cap = cardmod.caption(facts, d.rcept_no, summary, doc, hook)  # 자료 화면이 없으니 그 줄을 뺀다
-            log("reel", corp=d.corp_name, ok=bool(reel_meta), video=reel_meta)
             (out / f"{d.rcept_no}_caption.txt").write_text(cap, encoding="utf-8")
             # 게시 단계에서 다른 훅으로 다시 만들 수 있게 재료를 남긴다 (posts/<날짜>/<접수번호>/bundle.json)
             (out / f"{d.rcept_no}_bundle.json").write_text(json.dumps({
                 "facts": facts.model_dump(exclude={"raw"}), "summary": summary.model_dump(), "doc": doc,
-                "hooks": [h.__dict__ for h in hooks], "chosen": 0, "line2": second, "video": reel_meta}, ensure_ascii=False), encoding="utf-8")
+                "hooks": [h.__dict__ for h in hooks], "chosen": chosen, "line2": second, "video": reel_meta}, ensure_ascii=False), encoding="utf-8")
             db.add_post(run_id, issue_ids[d.rcept_no], [c.__dict__ for c in card_list], [str(p) for p in paths], cap)
             if facts.listing_date:
                 db.add_followup(db.conn.execute("SELECT id FROM disclosure WHERE rcept_no=?", (d.rcept_no,)).fetchone()["id"],
