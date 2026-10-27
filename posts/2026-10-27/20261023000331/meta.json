@@ -3,12 +3,29 @@
  "rcept_no": "20261023000331",
  "date": "2026-10-27",
  "n": 9,
- "status": "pending",
+ "status": "published",
  "source_run": "run1",
  "phase": "pre",
  "subscription_start": "2026-11-02",
  "telegram": {
   "message_id": 27,
   "chat_id": 8647980564
+ },
+ "instagram": {
+  "media_id": "17876627169586314",
+  "permalink": "https://www.instagram.com/p/De_snmcoO1H/",
+  "children": [
+   "17890560930468914",
+   "17890560954468914",
+   "17890560978468914",
+   "17890560999468914",
+   "17890561023468914",
+   "17890561041468914",
+   "17890561074468914",
+   "17890561095468914",
+   "17890561116468914"
+  ],
+  "published_at": "2026-10-27",
+  "by": "telegram"
  }
 }
