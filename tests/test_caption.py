@@ -163,6 +163,16 @@ def test_two_sentence_risk_is_split_one_per_line():
     assert cards.sentences("왜 그럼? 이래서 그럼.") == ["왜 그럼?", "이래서 그럼"]
 
 
+def test_business_line_in_company_block():
+    """'🏢 어떤 회사임?'에 하는 일 한 문장 (카드 2장 사업 요약을 음슴체로). 끝을 못 바꾸거나 숫자가 있으면 안 씀"""
+    s = Summary(business_lines=["회전을 재는 자이로스코프의", "핵심 광학 부품을 만들어 공급해요"], evidence=["a", "b"])
+    assert cards.plain_business(s) == "회전을 재는 자이로스코프의 핵심 광학 부품을 만들어 공급함"
+    cap = cards.caption(IpoFacts(**DONGWON), "20261023000331", s)
+    assert "🏢 어떤 회사임?\n- 회전을 재는 자이로스코프의" in cap and check_caption_layout(cap) == []
+    assert cards.plain_business(Summary(business_lines=["29년 된", "회사예요"], evidence=["a", "b"])) == ""
+    assert cards.plain_business(Summary(business_lines=["부품을", "만들어요"], evidence=["a", "b"])) == ""
+
+
 def test_investment_doc_name():
     assert cards.doc_kind("[기재정정]투자설명서") == "투자설명서"
     assert cards.doc_kind("[발행조건확정]증권신고서(지분증권)") == "증권신고서"

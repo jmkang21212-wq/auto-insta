@@ -9,7 +9,7 @@
  "reel": "reel.mp4",
  "phase": "pre",
  "subscription_start": "2026-11-05",
- "telegram": {
+ "telegram_old": {
   "message_id": 30,
   "chat_id": 8647980564,
   "format": "reel"

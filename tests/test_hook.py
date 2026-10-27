@@ -54,9 +54,26 @@ def test_explain_finds_english_glossary_key_from_korean_term():
     assert explain_line("Etch", gl, al).startswith(": Etch는 플라즈마")  # 이름이 똑같은 키가 부분 일치보다 먼저
     # 훅 용어를 '샤워헤드(Showerhead)'처럼 적어도 캡션엔 한글 이름만 (2026-10-27 Actions 실행에서 괄호째 나왔던 것)
     assert explain_line("샤워헤드(Showerhead)", FACTS.glossary) == ": 샤워헤드는 반도체 장비 내 공정 가스를 균일하게 분사하는 핵심 부품임"
-    # 해설 표에 없으면 비유가 무엇을 빗댄 건지만 밝힌다
-    assert explain_line("조립품", gl, al, "반도체 '레고' 만드는 회사가 상장함") == ": '레고'는 이 회사 제품 조립품을 빗댄 말임"
+    # 해설 표에도 원문 정의 문장에도 없으면 비유가 무엇을 빗댄 건지만 밝힌다 ('이 회사 제품'은 부품사에 틀릴 수 있어 안 씀)
+    assert explain_line("조립품", gl, al, "반도체 '레고' 만드는 회사가 상장함") == ": '레고'는 조립품을 빗댄 말임"
     assert explain_line("조립품", gl, al) == ""
+    # 비유가 용어와 안 닮았으면(전기장판·히터) 무엇을 빗댔는지 먼저, 닮았으면(샤워기·샤워헤드) 바로 정의
+    assert explain_line("Heater", gl, al, "칩용 '전기장판' 만드는 회사가 상장함") == \
+        ": '전기장판'은 히터를 빗댄 말임. 히터는 웨이퍼 및 장비 내부 온도를 제어하는 열 제어 부품임"
+    assert explain_line("샤워헤드", FACTS.glossary, None, "반도체 장비 속 '샤워기' 만드는 회사가 상장함").startswith(": 샤워헤드는")
+
+
+def test_explain_from_business_text_when_no_glossary():
+    """용어 해설 표가 없는 회사(옵토닉스, 2026-10-27): 사업 원문의 정의 문장을 음슴체로. 영문 괄호만 뺀다"""
+    ev = ["당사는 “광학식 자이로스코프”인 RLG (Ring Laser Gyroscope)의 핵심 광학 구성품을 제조합니다.",
+          "자이로스코프(Gyroscope)는 물체의 회전 운동을 감지하고 측정하는 센서로, 관성항법장치(Inertial Navigation System, INS)의 핵심 구성 요소입니다."]
+    line = explain_line("자이로스코프", {}, aliases(ev), "비행기 '균형 감각' 만드는 회사가 상장함", ev)
+    assert line == (": '균형 감각'은 자이로스코프를 빗댄 말임. "
+                    "자이로스코프는 물체의 회전 운동을 감지하고 측정하는 센서로, 관성항법장치의 핵심 구성 요소임"), line
+    from gongsi import cards
+    lines = cards.wrap(line)
+    assert sum(l.startswith(": ") for l in lines) == 2 and not any(l.endswith(".") for l in lines), lines
+    assert explain_line("자이로스코프", {}, None, "", ["자이로스코프는 1초에 100번 회전을 재는 센서입니다."]) == ""  # 숫자 든 정의는 안 씀
 
 
 def test_bad_hooks_rejected():

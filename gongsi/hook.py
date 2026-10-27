@@ -121,21 +121,63 @@ def metaphor(title: str) -> str:
     return m.group(1).strip() if m else ""
 
 
-def explain_line(term: str, glossary: dict[str, str], al: dict[str, set[str]] | None = None, title: str = "") -> str:
-    """캡션 ':' 풀이 줄: 신고서 용어 해설 문장을 그대로 붙인다 (숫자가 든 풀이는 숫자 대조 때문에 쓰지 않음).
-    해설 표에 없으면 비유가 무엇을 빗댄 건지만 밝힌다 (용어는 원문에 있다는 걸 check_hook이 확인함)."""
+_ENDINGS = (("입니다", "임"), ("이다", "임"), ("있습니다", "있음"), ("없습니다", "없음"), ("됩니다", "됨"), ("합니다", "함"))
+
+
+def _eumseum(s: str) -> str:
+    """신고서 문장 끝을 음슴체로: '…구성 요소입니다.' → '…구성 요소임'. 모르는 끝이면 빈 문자열"""
+    s = s.strip().rstrip(".")
+    for a, b in _ENDINGS:
+        if s.endswith(a):
+            return s[: -len(a)] + b
+    return s if s.endswith(("임", "함", "음", "됨")) else ""
+
+
+def definition_from_evidence(names: list[str], evidence: list[str]) -> str:
+    """사업 원문에서 '자이로스코프(Gyroscope)는 …입니다.' 같은 정의 문장을 찾아 음슴체로 (용어 해설 표가 없는 회사용).
+    영문 괄호와 따옴표만 빼고 원문 그대로. 숫자가 들었거나 너무 길면 안 씀 (숫자 대조·읽기)"""
+    for s in evidence:
+        t = re.sub(r"[“”\"]", "", s).strip()
+        for n in names:
+            if n and re.match(rf"^{re.escape(n)}\s*(\([^)]*\))?\s*(은|는)\s", t, flags=re.I):
+                t = re.sub(r"\s*\([^)]*[A-Za-z][^)]*\)", "", t)
+                d = _eumseum(re.split(r"(?<=[.?!])\s+", t)[0])
+                if d and not re.search(r"\d", d) and len(d) <= 90:
+                    return d
+    return ""
+
+
+def _alike(a: str, b: str) -> bool:
+    """비유와 용어가 두 글자 이상 겹치면(샤워기·샤워헤드) '빗댄 말' 줄 없이도 통한다"""
+    a, b = a.replace(" ", ""), b.replace(" ", "")
+    return any(a[i:i + 2] in b for i in range(len(a) - 1))
+
+
+def explain_parts(term: str, glossary: dict[str, str], al: dict[str, set[str]] | None = None, title: str = "",
+                  evidence: list[str] | None = None) -> tuple[str, str]:
+    """(비유가 무엇을 빗댔는지, 그 용어의 정의). 정의는 신고서 용어 해설 표 → 없으면 사업 원문의 정의 문장."""
     korean = _korean(term) or next((k for a in sorted((al or {}).get(_norm(term), set())) if (k := _korean(a))), "")
     key = _gloss_key(term, glossary, al)
+    name = korean or (display_term(key) if key else term.strip())
+    definition = ""
     if key and not re.search(r"\d", glossary[key]):
-        name = korean or display_term(key)
         d = glossary[key].strip()
         d = re.split(r"(?<=[.?!])\s+", d)[0].rstrip(".")  # 해설이 두 문장이면 첫 문장(정의)만
-        return f": {name}{_josa(name, '은', '는')} {d}" + ("" if d.endswith(("임", "함", "음", "다")) else "임")
+        definition = f"{name}{_josa(name, '은', '는')} {d}" + ("" if d.endswith(("임", "함", "음", "다")) else "임")
+    elif evidence:
+        names = [n for n in dict.fromkeys([name, term.strip(), *sorted((al or {}).get(_norm(term), set()))]) if n]
+        definition = definition_from_evidence(names, evidence)
     m = metaphor(title)
-    if m and term:
-        name = korean or term
-        return f": '{m}'{_josa(m, '은', '는')} 이 회사 제품 {name}{_josa(name, '을', '를')} 빗댄 말임"
-    return ""
+    mapping = f"'{m}'{_josa(m, '은', '는')} {name}{_josa(name, '을', '를')} 빗댄 말임" if m and name and not _alike(m, name) else ""
+    return mapping, definition
+
+
+def explain_line(term: str, glossary: dict[str, str], al: dict[str, set[str]] | None = None, title: str = "",
+                 evidence: list[str] | None = None) -> str:
+    """캡션 ':' 풀이: 비유가 덜 뻔하면 무엇을 빗댔는지 + 그 용어 정의(신고서 문장 그대로). 문장마다 ':' 줄로 나뉜다.
+    정의를 못 찾으면 빗댄 대상만 밝힌다 (용어가 원문에 있다는 건 check_hook이 확인함)."""
+    parts = [p for p in explain_parts(term, glossary, al, title, evidence) if p]
+    return (": " + ". ".join(parts)) if parts else ""
 
 
 def check_hook(h: Hook, facts: IpoFacts) -> list[str]:
@@ -173,15 +215,16 @@ def make_hooks(facts: IpoFacts) -> list[Hook]:
     if "{" not in text:
         return []
     data = json.loads(text[text.find("{"): text.rfind("}") + 1])
-    hooks = []
+    hooks, rank = [], {}
     al = aliases(facts.business_evidence)
     for raw in data.get("hooks", [])[:3]:
         h = Hook(**{k: str(raw.get(k, "")).strip() for k in ("title", "term", "emoji", "sub", "video")})
         if not check_hook(h, facts):
-            h.explain = explain_line(h.term, facts.glossary, al, h.title)
+            h.explain = explain_line(h.term, facts.glossary, al, h.title, facts.business_evidence)
+            rank[id(h)] = 0 if explain_parts(h.term, facts.glossary, al, h.title, facts.business_evidence)[1] else 1 if h.explain else 2
             hooks.append(h)
-    # 캡션에서 신고서 용어 해설로 풀어 줄 수 있는 훅을 앞으로 (빗댄 말만 밝히는 훅은 뒤로). 같은 급이면 모델이 쓴 순서
-    hooks.sort(key=lambda h: 0 if h.explain and "빗댄 말임" not in h.explain else 1 if h.explain else 2)
+    # 캡션에서 신고서 문장으로 용어 정의까지 풀어 줄 수 있는 훅을 앞으로 (빗댄 대상만 밝히는 훅은 뒤로). 같은 급이면 모델이 쓴 순서
+    hooks.sort(key=lambda h: rank[id(h)])
     return hooks
 
 

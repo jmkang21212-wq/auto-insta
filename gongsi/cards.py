@@ -404,6 +404,22 @@ def _eun(word: str) -> str:
     return "은" if _batchim(word) else "는"
 
 
+_BIZ_END = (("해요", "함"), ("돼요", "됨"), ("이에요", "임"), ("예요", "임"), ("있어요", "있음"), ("없어요", "없음"))
+
+
+def plain_business(summary: Summary | None) -> str:
+    """사업 요약 2줄('…부품을' / '…만들어 공급해요')을 캡션 한 문장 음슴체로. 끝을 못 바꾸거나 숫자가 있으면 안 씀"""
+    if not summary or not summary.business_lines:
+        return ""
+    s = " ".join(l.strip() for l in summary.business_lines if l.strip()).rstrip(".!")
+    if re.search(r"\d", s):
+        return ""
+    for a, b in _BIZ_END:
+        if s.endswith(a):
+            return s[: -len(a)] + b
+    return ""
+
+
 def caption(facts: IpoFacts, rcept_no: str, summary: Summary | None = None, doc: str = "증권신고서",
             hook=None, credit: str = "") -> str:
     """인스타 캡션. 릴스 화면은 훅만, 설명은 전부 캡션에서 (ekke.now 방식, 2026-10-27 사용자 결정).
@@ -472,9 +488,12 @@ def caption(facts: IpoFacts, rcept_no: str, summary: Summary | None = None, doc:
         first += item("-", f"희망 공모가 {band}")
     blocks.append(first)
 
-    # 2. 어떤 회사인지 (업종 + 신고서 실적)
+    # 2. 어떤 회사인지 (하는 일 + 신고서 실적). 하는 일은 카드 2장과 같은 사업 요약(근거 문장 대조를 통과한 것)을 음슴체로
     who: list[str] = []
-    if facts.industry and not hook:
+    biz = plain_business(summary)
+    if biz:
+        who += item("-", biz)
+    elif facts.industry and not hook:
         ind = facts.industry.strip()
         who += item("-", ind if ind.endswith(("회사", "기업", "업체")) else f"{ind} 회사")
     if facts.revenue_krw:

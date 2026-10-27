@@ -5,18 +5,21 @@ on:
   workflow_dispatch:
     inputs:
       cmd:
-        description: "poll(기본) / check / chat-id / list / publish"
+        description: "poll(기본) / watch / check / chat-id / list / publish"
         default: "poll"
       rcept_no:
         description: "publish 일 때 접수번호"
         default: ""
+      minutes:
+        description: "watch 일 때 승인을 기다릴 시간(분, 최대 110)"
+        default: "60"
 
 concurrency: { group: posts, cancel-in-progress: false }
 
 jobs:
   poll:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 120   # watch(승인 대기)일 때만 길게 돈다. poll은 몇 분
     permissions: { contents: write }
     env:
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -35,10 +38,15 @@ jobs:
       - name: ffmpeg
         run: command -v ffmpeg || (sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg)
       - name: 실행
+        env: { GIT_SYNC: "1" }   # [N번 훅으로]로 다시 만든 릴스는 바로 푸시해야 인스타가 raw 주소로 가져감
         run: |
+          git config user.name "gongsi-bot"
+          git config user.email "gongsi-bot@users.noreply.github.com"
           CMD="${{ github.event.inputs.cmd || 'poll' }}"
           if [ "$CMD" = "publish" ]; then
             python -m gongsi.publish publish --rcept-no "${{ github.event.inputs.rcept_no }}"
+          elif [ "$CMD" = "watch" ]; then
+            python -m gongsi.publish watch --minutes "${{ github.event.inputs.minutes || '60' }}"
           else
             python -m gongsi.publish "$CMD"
           fi
