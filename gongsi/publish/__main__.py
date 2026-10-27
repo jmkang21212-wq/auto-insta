@@ -4,6 +4,7 @@
   notify         pending 인데 아직 텔레그램에 안 보낸 게시물을 보내 승인을 받는다 (APPROVAL=auto 면 바로 게시)
   poll           텔레그램 버튼 응답을 읽어 승인된 것을 인스타그램에 게시한다 (approved 상태로 남은 것도 재시도)
                  릴스면 [N번 훅으로] 버튼에 그 훅으로 릴스·캡션을 다시 만들어 다시 승인 요청
+  watch --minutes M   M분 동안 1분마다 poll (생성 실행이 끝난 뒤 그 자리에서 승인을 기다려 바로 게시. 대기 중인 게 없으면 바로 끝)
   publish --rcept-no N   승인 없이 바로 게시 (수동)
   check          인스타그램 토큰·한도, 텔레그램 봇 연결 확인
   refresh-token  인스타그램 장기 토큰 연장 (새 토큰을 출력. Actions에선 gh secret set 으로 저장)
@@ -17,7 +18,9 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import subprocess
 import sys
+import time
 import traceback
 from datetime import date
 from pathlib import Path
@@ -128,6 +131,7 @@ def cmd_poll(args) -> None:
             telegram.ack(cq, f"{decision[1:]}번 훅으로 다시 만드는 중…")
             try:
                 _rerender(post, int(decision[1:]) - 1)
+                _git_sync(f"posts: rerender {post.rcept_no} hook {decision[1:]}")
                 post.meta["telegram"] = telegram.send_for_approval(post)
                 post.save()
                 log("poll", corp=post.meta["corp"], rcept_no=rcept, decision=decision, reel=post.meta.get("reel"))
@@ -170,6 +174,32 @@ def _rerender(post: store.Post, idx: int) -> None:
     path.write_text(json.dumps(b, ensure_ascii=False), encoding="utf-8")
     post.meta.update(reel=name, status="pending")
     post.save()
+
+
+def _git_sync(msg: str) -> None:
+    """Actions 안에서만(GIT_SYNC=1): 다시 만든 릴스를 바로 푸시해야 인스타가 raw 주소로 가져갈 수 있다"""
+    if os.getenv("GIT_SYNC") != "1":
+        return
+    root = str(store.ROOT)
+    subprocess.run(["git", "add", "posts", "state"], cwd=root, check=False)
+    if subprocess.run(["git", "diff", "--cached", "--quiet"], cwd=root).returncode != 0:
+        subprocess.run(["git", "commit", "-q", "-m", msg], cwd=root, check=False)
+        subprocess.run(["git", "pull", "-q", "--rebase", "origin", os.getenv("GITHUB_REF_NAME", "main")], cwd=root, check=False)
+        subprocess.run(["git", "push", "-q"], cwd=root, check=False)
+
+
+def cmd_watch(args) -> None:
+    """생성 실행 끝에 승인을 그 자리에서 기다린다 (깃허브 예약 실행이 안 돌아서 30분 poll 대신, 2026-10-27).
+    1분마다 poll. 승인·넘기기로 대기 중인 게 없어지면 끝, 최대 args.minutes분."""
+    deadline = time.time() + args.minutes * 60
+    while True:
+        cmd_poll(args)
+        _git_sync(f"posts: watch {time.strftime('%F %H:%M')}")
+        waiting = [p for p in store.all_posts() if p.meta.get("status") in ("pending", "approved")]
+        if not waiting or time.time() > deadline:
+            log("watch", waiting=[p.rcept_no for p in waiting], done=not waiting)
+            return
+        time.sleep(60)
 
 
 def cmd_publish(args) -> None:
@@ -241,6 +271,7 @@ def main(argv=None) -> int:
     s = sub.add_parser("stage"); s.add_argument("--run", type=int); s.add_argument("--force", action="store_true")
     sub.add_parser("notify")
     sub.add_parser("poll")
+    w = sub.add_parser("watch"); w.add_argument("--minutes", type=int, default=330)
     p = sub.add_parser("publish"); p.add_argument("--rcept-no", required=True)
     sub.add_parser("check")
     sub.add_parser("refresh-token")
@@ -248,7 +279,7 @@ def main(argv=None) -> int:
     sub.add_parser("chat-id")
     args = ap.parse_args(argv)
     try:
-        {"stage": cmd_stage, "notify": cmd_notify, "poll": cmd_poll, "publish": cmd_publish,
+        {"stage": cmd_stage, "notify": cmd_notify, "poll": cmd_poll, "watch": cmd_watch, "publish": cmd_publish,
          "check": cmd_check, "refresh-token": cmd_refresh, "list": cmd_list, "chat-id": cmd_chat_id}[args.cmd](args)
     except Exception as e:
         log("error", cmd=args.cmd, error=str(e)[:500])
