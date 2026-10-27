@@ -13,6 +13,7 @@ from datetime import date
 from gongsi.benchmarks import compare_float, compare_lockup, compare_ratio, refs as bench_refs
 from gongsi.config import settings
 from gongsi.models import IpoFacts, Summary
+from gongsi.verify import CAPTION_LINE_MAX, line_width
 
 GLOSSARY = json.loads((settings.fixtures_dir / "glossary.json").read_text(encoding="utf-8"))
 BRAND = json.loads((settings.fixtures_dir / "brand.json").read_text(encoding="utf-8"))
@@ -284,72 +285,103 @@ def broker_text(facts: IpoFacts) -> str:
     u = facts.underwriters
     if not u:
         return ""
-    return "청약 증권사 " + ", ".join(u[:2]) + (f" 외 {len(u) - 2}곳" if len(u) > 2 else "")
+    return "🏦 청약은 " + (", ".join(u) if len(u) <= 2 else f"{u[0]} 외 {len(u) - 1}곳") + "에서"
+
+
+def _batchim(word: str) -> bool:
+    ch = word[-1]
+    return "가" <= ch <= "힣" and (ord(ch) - 0xAC00) % 28 != 0
 
 
 def _ieyo(word: str) -> str:
     """받침 있으면 '이에요', 없으면 '예요' (한글이 아닌 끝 글자는 '예요')"""
-    ch = word[-1]
-    return "이에요" if "가" <= ch <= "힣" and (ord(ch) - 0xAC00) % 28 else "예요"
+    return "이에요" if _batchim(word) else "예요"
+
+
+def _fit(*candidates: str) -> str:
+    """휴대폰 한 줄에 들어가는 첫 후보. 회사명이 길면 뒤쪽의 짧은 문구를 쓴다"""
+    return next((c for c in candidates if line_width(c) <= CAPTION_LINE_MAX), candidates[-1])
+
+
+# 브랜드 목소리(fixtures/brand.json voice): 신고서를 대신 읽어 주는 20대 후반~30대 초반 직장인 언니.
+# 같은 문장이 매번 반복되지 않게 접수번호로 돌려 쓴다
+INTRO = ["증권신고서 대신 읽고 왔어요 🤓", "신고서에서 숫자만 쏙 뽑아 왔어요 🧾", "청약 전에 볼 숫자, 정리해 왔어요 ✍️"]
 
 
 def caption(facts: IpoFacts, rcept_no: str, summary: Summary | None = None, doc: str = "증권신고서") -> str:
-    """인스타 캡션. 2026-10-27 '말투가 AI 같고 줄바꿈이 제멋대로' 피드백으로 다시 짰고,
-    같은 날 다른 공모주 글(알파스퀘어 인사이트, 글래스월렛, 토스뱅크)을 참고해 고쳤다.
-    - 다른 글들은 제목에 숫자 하나로 훅을 건다("경쟁률 868대 1인데 확약은 4%"). → 둘째 줄을 훅 숫자로
-    - 다른 글들은 청약 실무 숫자(청약 증권사, 최소 증거금)를 꼭 넣는다. → 숫자 덩어리에 추가
-    - 훅에 쓴 숫자는 아래에서 다시 쓰지 않는다
+    """인스타 캡션.
 
-    규칙 (verify.check_caption_layout이 검사):
-    - 덩어리(제목 / 숫자 / 일정 / 출처 / 해시태그) 사이에만 빈 줄 하나. 덩어리 안에는 빈 줄 없음
-    - 한 줄에 한 가지: 숫자는 '이름 값' 한 줄, 문장은 한 줄에 한 문장. 휴대폰 한 줄을 넘지 않는 길이
-    - 숫자 줄은 명사형으로 짧게. '~요' 문장은 회사 소개 한 줄과 다음 소식 한 줄, 면책 한 줄뿐
-    - 질문·저장 유도 문구는 카드 10장에 이미 있어 캡션에서 뺌. 구현 안 된 약속(상장일 결과 게시)도 쓰지 않음
-    - 첫 두 줄(회사명 공모주 청약 / 훅 숫자)이 '더 보기' 전 미리보기와 검색에 걸리는 부분
-    - 숫자는 전부 facts·derived에서 (pipeline이 카드와 같은 기준으로 대조). 해시태그는 게시물당 5개까지(2025.12~)
+    2026-10-27 피드백 세 번을 거쳐 지금 모양이 됐다.
+    1) '말투가 AI 같고 줄바꿈이 제멋대로' → 덩어리 사이 빈 줄 하나, 한 줄에 한 가지, 휴대폰 한 줄 폭
+    2) '다른 글 참고' (알파스퀘어 인사이트, 글래스월렛, 토스뱅크) → 첫 줄들에 숫자 훅, 청약 증권사·최소 증거금 추가
+    3) '너무 차분하다, 이모지 넣고 후킹하라, 페르소나를 정하라' → brand.json voice 페르소나,
+       첫 두 줄은 이모지 + 숫자 훅(질문으로 궁금하게), 숫자 줄은 이모지 머리표, 저장 유도 한 줄
+    지키는 선: 추천·확신·상승 암시 금지(verify.FORBIDDEN, 🚀📈 안 씀), 숫자는 전부 facts·derived에서,
+    구현 안 된 약속 금지, 해시태그 5개까지(2025.12~). 줄 규칙은 verify.check_caption_layout이 검사
     """
     corp = facts.corp_name
     has_band = bool(facts.band_low_krw and facts.band_high_krw)
-    if facts.demand_ratio is not None and facts.lockup_ratio_pct is not None:
-        hook, used = f"기관 경쟁률 {ratio(facts.demand_ratio)}, 확약 {pct(facts.lockup_ratio_pct)}", {"demand", "lockup"}
-    elif facts.demand_ratio is not None:
-        hook, used = f"기관 경쟁률 {ratio(facts.demand_ratio)}", {"demand"}
-    elif facts.float_ratio_pct is not None:
-        hook, used = f"상장일 유통 가능 물량 {pct(facts.float_ratio_pct)}", {"float"}
-    elif has_band and not facts.final_price_krw:
-        hook, used = f"희망 공모가 {facts.band_low_krw:,}~{facts.band_high_krw:,}원", {"price"}
-    else:
-        hook, used = "", set()
-    blocks: list[list[str]] = [[f"{corp} 공모주 청약", hook]]
+    start = date.fromisoformat(facts.subscription_start) if facts.subscription_start else None
 
-    nums: list[str] = []
+    # 1. 첫 두 줄: '더 보기' 전에 보이는 부분. 이모지 + 회사명 + 숫자 훅
+    used: set[str] = set()
+    if facts.demand_ratio is not None:
+        top = _fit(f"📢 {corp} 수요예측 결과 나왔어요", f"📢 {corp} 수요예측 결과")
+        hook = (f"👀 경쟁률 {ratio(facts.demand_ratio)}, 그럼 확약은?" if facts.lockup_ratio_pct is not None
+                else f"👀 기관 경쟁률 {ratio(facts.demand_ratio)}")
+        used.add("demand")
+    else:
+        when = f"{start.month}월 {start.day}일" if start else ""
+        top = (_fit(f"⏰ {corp} 공모주, {when} 청약 시작", f"⏰ {corp}, {when} 청약 시작", f"⏰ {corp} 공모주 청약")
+               if when else f"⏰ {corp} 공모주 청약")
+        if facts.float_ratio_pct is not None:
+            hook = f"👀 상장일 유통 가능 물량이 {pct(facts.float_ratio_pct)}라고요?"
+            used.add("float")
+        elif has_band:
+            hook = f"👀 희망 공모가 {facts.band_low_krw:,}~{facts.band_high_krw:,}원"
+            used.add("price")
+        else:
+            hook = ""
+    blocks: list[list[str]] = [[top, hook]]
+
+    # 2. 페르소나 한마디 + 무슨 회사인지
+    intro = [INTRO[sum(int(c) for c in rcept_no if c.isdigit()) % len(INTRO)]]
     if facts.industry:
         ind = facts.industry.strip()
-        nums.append(f"{ind}{_ieyo(ind)}." if ind.endswith(("회사", "기업", "업체")) else f"{ind} 회사예요.")
-    nums.append(f"청약일 {kdays(facts.subscription_start, facts.subscription_end)}" if facts.subscription_start else "")
-    nums.append(broker_text(facts))
+        is_kind = ind.endswith(("회사", "기업", "업체"))
+        one = (f"{ind}{'이고' if _batchim(ind) else '고'}" if is_kind else f"{ind} 회사고") + ", 숫자는 이래요 👇"
+        intro += [one] if line_width(one) <= CAPTION_LINE_MAX else [
+            f"{ind}{_ieyo(ind)}." if is_kind else f"{ind} 회사예요.", "숫자는 이래요 👇"]
+    else:
+        intro.append("숫자는 이래요 👇")
+    blocks.append(intro)
+
+    # 3. 숫자: 이모지 머리표 + 이름 값. 훅에 쓴 숫자는 다시 안 씀
+    nums = [f"📅 청약 {kdays(facts.subscription_start, facts.subscription_end)}" if start else "", broker_text(facts)]
     if facts.final_price_krw:
         pos = band_pos(facts.final_price_krw, facts.band_low_krw, facts.band_high_krw)
-        nums.append(f"확정 공모가 {facts.final_price_krw:,}원" + (f" ({pos})" if pos else ""))
+        nums.append(f"💰 확정 공모가 {facts.final_price_krw:,}원" + (f" ({pos})" if pos else ""))
     elif has_band and "price" not in used:
-        nums.append(f"희망 공모가 {facts.band_low_krw:,}~{facts.band_high_krw:,}원")
-    nums.append(deposit_text(facts))
-    if facts.demand_ratio is not None and "demand" not in used:
-        nums.append(f"기관 경쟁률 {ratio(facts.demand_ratio)}")
-    if facts.lockup_ratio_pct is not None and "lockup" not in used:
-        nums.append(f"의무보유 확약 {pct(facts.lockup_ratio_pct)}")
+        nums.append(f"💰 희망 공모가 {facts.band_low_krw:,}~{facts.band_high_krw:,}원")
+    dep = deposit_text(facts)
+    nums.append(f"💸 {dep}" if dep else "")
+    if facts.lockup_ratio_pct is not None:
+        nums.append(f"🔒 의무보유 확약 {pct(facts.lockup_ratio_pct)}")
     if facts.float_ratio_pct is not None and "float" not in used:
-        nums.append(f"상장일 유통 가능 물량 {pct(facts.float_ratio_pct)}")
+        nums.append(f"🔓 상장일 유통 가능 물량 {pct(facts.float_ratio_pct)}")
     blocks.append(nums)
 
-    if facts.demand_ratio is None:  # 수요예측 전: 언제 끝나는지 + 결과가 나오면 다시 올린다(발행조건확정 공시로 2차 게시가 실제로 돈다)
-        when = [f"수요예측 {kdays(facts.forecast_start, facts.forecast_end)}"] if facts.forecast_start else []
-        blocks.append(when + ["결과 나오면 경쟁률·확약으로 다시 올릴게요."])
-    else:  # 수요예측 뒤: 청약 다음 일정
-        blocks.append([f"환불일 {kdate(facts.refund_date)}"] * bool(facts.refund_date)
-                      + [f"상장 예정일 {kdate(facts.listing_date)}"] * bool(facts.listing_date))
+    # 4. 다음 소식 + 저장 유도 한 줄
+    if facts.demand_ratio is None:  # 수요예측 결과(발행조건확정 공시)가 나오면 2차 게시가 실제로 돈다
+        nxt = [f"📌 수요예측은 {kdate(facts.forecast_end)}까지" if facts.forecast_end else "",
+               "결과 나오면 경쟁률·확약 들고 다시 올게요!"]
+    else:
+        when2 = [f"환불 {kdate(facts.refund_date)}" if facts.refund_date else "",
+                 f"상장 {kdate(facts.listing_date)}" if facts.listing_date else ""]
+        nxt = ["🗓️ " + ", ".join(w for w in when2 if w)] if any(when2) else []
+    blocks.append(nxt + ["🔖 저장해 두고 청약 날 다시 보세요"])
 
-    blocks.append([f"출처: DART {doc} {rcept_no}", "투자 권유는 아니에요."])
+    blocks.append([f"출처: DART {doc} {rcept_no}", "※ 투자 권유 아니고, 판단은 각자 몫이에요"])
     tags = ["#공모주", "#공모주청약", "#" + corp.replace(" ", ""), "#청약일정", BRAND.get("hashtag", "")]
     blocks.append([" ".join([t for t in dict.fromkeys(tags) if t and t != "#"][:5])])
     blocks = [[l for l in b if l] for b in blocks]  # 값이 없어 비는 줄은 빼서 덩어리 안에 빈 줄이 생기지 않게

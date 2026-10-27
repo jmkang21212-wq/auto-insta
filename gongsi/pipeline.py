@@ -111,7 +111,7 @@ def run(adapter: Adapter, date_from: str, date_to: str, only_rcept: str | None, 
             problems += check_forbidden(summary.business_lines + [facts.industry or ""] + [l for pair in summary.risk_lines for l in pair])
             # 캡션도 카드와 같은 기준으로: 숫자는 facts·derived에서만 (출처 줄의 접수번호는 제외), 금지어 없음, 줄바꿈 규칙
             cap = cardmod.caption(facts, d.rcept_no, summary, doc)
-            cap_body = "\n".join(l for l in cap.splitlines() if not l.startswith("출처:"))
+            cap_body = cap.replace(d.rcept_no, "")  # 접수번호는 공시 숫자가 아니라 출처 표기
             problems += [f"캡션: {p}" for p in check_numbers([cap_body], facts) if not any(f"'{k}'" in p for k in allowed_derived)]
             problems += [f"캡션: {p}" for p in check_forbidden([cap_body])]
             problems += [f"캡션: {p}" for p in check_caption_layout(cap)]

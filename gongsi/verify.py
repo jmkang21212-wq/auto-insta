@@ -83,6 +83,8 @@ _WIDTH = {" ": 0.3, "%": 1.0, "~": 0.75, "#": 0.7, "(": 0.4, ")": 0.4, "·": 0.3
 def line_width(s: str) -> float:
     w = 0.0
     for ch in s:
+        if ch in ("\ufe0f", "\u200d"):  # 이모지 모양 선택자·결합 문자는 폭 없음
+            continue
         if ch in _WIDTH:
             w += _WIDTH[ch]
         elif "가" <= ch <= "힣" or "㄰" <= ch <= "㆏":
