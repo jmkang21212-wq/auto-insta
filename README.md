@@ -1,5 +1,9 @@
 # gongsi-cards
 
+<img src="docs/sample-card-1.jpg" width="280" alt="카드 예시 1"> <img src="docs/sample-card-2.jpg" width="280" alt="카드 예시 2">
+
+(예시는 픽스처의 가상 회사 '샘플전자'입니다)
+
 공시(DART)에서 공모주 1건을 골라 인스타그램 캐러셀(최대 10장 PNG)과 캡션을 자동으로 만드는 파이프라인입니다.
 구성안 문서의 1~2단계(코어 뼈대, 검증·생성)에 해당하고, 게시(3단계)는 아직 없습니다.
 
