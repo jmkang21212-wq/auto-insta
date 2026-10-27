@@ -1,0 +1,15 @@
+{
+ "_comment": "브랜드 설정. 워드마크 모양(ipo 파란색, i 점 노란색)은 templates/card.html 의 wordmark 매크로에 있고, 여기는 문구만.",
+ "name": "ipov",
+ "reading": "아이피오브",
+ "meaning": "IPO + POV(시점). 공모주를 공시 숫자로 보는 시점",
+ "tagline": "숫자로 보는 공모주",
+ "handle": "",
+ "hashtag": "#ipov",
+ "benefits": [
+  "청약이 다가온 공모주를 미리 정리해요",
+  "경쟁률·확약·유통 물량을 유명 공모주와 나란히",
+  "회사 숫자는 전부 DART 공시 원문에서"
+ ],
+ "cta": "팔로우하고 청약 전에 받아보세요"
+}

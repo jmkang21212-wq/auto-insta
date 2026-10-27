@@ -15,7 +15,8 @@ from gongsi.config import settings
 from gongsi.models import IpoFacts, Summary
 
 GLOSSARY = json.loads((settings.fixtures_dir / "glossary.json").read_text(encoding="utf-8"))
-TOTAL = 10  # 최대 장수. 실제 장수는 build() 결과 길이 (수요예측 전엔 경쟁률·확약 장이 빠져 8장)
+BRAND = json.loads((settings.fixtures_dir / "brand.json").read_text(encoding="utf-8"))
+TOTAL = 11  # 최대 장수(브랜드 홍보 장 포함). 실제 장수는 build() 결과 길이 (수요예측 전엔 경쟁률·확약 장이 빠져 9장)
 # 8장 분류 꼬리표: 신고서 용어(사업위험·회사위험·기타위험)를 풀어 쓴 고정 문구. 인용문 자체는 원문 그대로
 RISK_LABEL = {"사업위험": "업계 전체가 안고 있는 위험", "회사위험": "이 회사만의 위험", "기타위험": "그 밖에 알아둘 위험"}
 
@@ -203,8 +204,11 @@ def build(facts: IpoFacts, summary: Summary, today: date | None = None, rcept_no
                      "footer": "공시에 적힌 사실만 전해드려요. 투자 권유는 아니에요"},
                role="closing", lead="마지막으로 하나만 여쭤볼게요 →")
 
+    # 11 브랜드 홍보 장: 문구는 전부 fixtures/brand.json (숫자 없음). 아이디는 정해졌을 때만 표시
+    c11 = Card(11, "outro", BRAND["name"], data={"brand": BRAND}, role="outro")
+
     # 값이 없어 뺀 장을 제외하고 번호를 다시 매기고, 각 장의 "다음 →" 문구는 실제 다음 장의 lead로 잇는다
-    cards = [c for c in (c1, c2, c3, c4, c5, c6, c7, c8, c9, c10) if c is not None]
+    cards = [c for c in (c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11) if c is not None]
     for i, c in enumerate(cards, start=1):
         c.n = i
         c.tease = cards[i].lead if i < len(cards) else ""
@@ -212,27 +216,51 @@ def build(facts: IpoFacts, summary: Summary, today: date | None = None, rcept_no
     return cards, derived
 
 
-def caption(facts: IpoFacts, rcept_no: str) -> str:
-    top = facts.revenue_mix[0] if facts.revenue_mix else None
-    detail = []
-    if top:
-        detail.append(f"매출의 {pct(top.pct)}가 {top.name}" + (f", 고객은 {facts.customers}" if facts.customers else ""))
-    if facts.major_holder_after_pct is not None:
-        detail.append(f"최대주주 지분은 상장 후 {pct(facts.major_holder_after_pct)}")
-    notes = [f"{u.purpose}: {u.note}" for u in facts.use_of_proceeds[:2] if u.note]
+def kdays(a: str | None, b: str | None) -> str:
+    """'2026-11-02','2026-11-03' → '11월 2~3일' (캡션용 한국어 날짜)"""
+    if not a:
+        return "미정"
+    m1, d1 = int(a[5:7]), int(a[8:10])
+    if not b or a == b:
+        return f"{m1}월 {d1}일"
+    m2, d2 = int(b[5:7]), int(b[8:10])
+    return f"{m1}월 {d1}~{d2}일" if m1 == m2 else f"{m1}월 {d1}일~{m2}월 {d2}일"
+
+
+def caption(facts: IpoFacts, rcept_no: str, summary: Summary | None = None) -> str:
+    """인스타 캡션. 검색은 캡션 글을 보고 '더 보기' 전엔 앞부분만 보이니, 첫 줄에 회사명·공모주·청약일과 숫자 하나.
+    해시태그는 게시물당 5개까지(2025.12~)라 5개로 맞춘다. 숫자는 전부 facts에서만 (verify가 캡션도 대조)."""
+    corp = facts.corp_name
+    if facts.demand_ratio is not None and facts.lockup_ratio_pct is not None:
+        hook = f"경쟁률은 {ratio(facts.demand_ratio)}, 확약은 {pct(facts.lockup_ratio_pct)}예요"
+    elif facts.float_ratio_pct is not None:
+        hook = f"상장 첫날 팔 수 있는 물량은 {pct(facts.float_ratio_pct)}예요"
+    else:
+        hook = f"공모 규모는 {won(facts.offering_amount_krw)}이에요"
+    first = f"{corp} 공모주 청약은 {kdays(facts.subscription_start, facts.subscription_end)}이에요. {hook}"
+
+    body = []
+    if summary and summary.business_lines:
+        body.append(" ".join(l.strip() for l in summary.business_lines if l.strip()))
+    if facts.final_price_krw:
+        pos = ""
+        if facts.band_low_krw and facts.band_high_krw:
+            pos = " (밴드 맨 위)" if facts.final_price_krw == facts.band_high_krw else (
+                " (밴드 맨 아래)" if facts.final_price_krw == facts.band_low_krw else " (밴드 안)")
+        body.append(f"공모가 {facts.final_price_krw:,}원{pos}, 공모 규모 {won(facts.offering_amount_krw)}")
+    elif facts.band_low_krw and facts.band_high_krw:
+        body.append(f"희망 공모가 {facts.band_low_krw:,}~{facts.band_high_krw:,}원, 공모 규모 {won(facts.offering_amount_krw)}(밴드 하단 기준)")
+    if facts.demand_ratio is None and facts.forecast_start:
+        body.append(f"수요예측({mdrange(facts.forecast_start, facts.forecast_end)}) 결과가 나오면 경쟁률·확약으로 다시 정리해 드릴게요")
+    elif facts.listing_date:
+        body.append(f"상장은 {kdays(facts.listing_date, None)} 예정이에요. 그날 시초가 결과로 다시 올게요")
+
+    tags = ["#공모주", "#공모주청약", "#" + corp.replace(" ", ""), "#청약일정", BRAND.get("hashtag", "")]
+    tags = [t for t in dict.fromkeys(tags) if t and t != "#"][:5]
     return (
-        f"{facts.corp_name}, 청약은 {mdrange(facts.subscription_start, facts.subscription_end)}이에요\n"
-        + (f"공모가 {facts.final_price_krw:,}원" if facts.final_price_krw
-           else (f"희망 공모가 {facts.band_low_krw:,}~{facts.band_high_krw:,}원" if facts.band_low_krw and facts.band_high_krw else "공모가 미정"))
-        + f" · 공모 규모 {won(facts.offering_amount_krw)}" + ("" if facts.final_price_krw else " (밴드 하단 기준)") + "\n"
-        + (f"상장은 {md(facts.listing_date)} 예정. 그날 시초가 결과로 다시 올게요\n\n" if facts.listing_date
-           else "상장일은 아직 공시 전이에요. 정해지면 시초가 결과로 다시 올게요\n\n")
-        + ("\n".join(detail + notes) + "\n\n" if (detail or notes) else "")
-        + f"출처: DART 증권신고서 (접수번호 {rcept_no})\n"
-        # 용어 풀이는 이번 카드에 실제로 나온 숫자만 (수요예측 전엔 경쟁률·확약 장이 없으니 설명도 뺀다)
-        + "용어 풀이\n" + "".join(f"- {GLOSSARY[k]['caption']}\n" for k, v in
-                                  (("demand", facts.demand_ratio), ("lockup", facts.lockup_ratio_pct), ("float", facts.float_ratio_pct))
-                                  if v is not None) + "\n"
-        f"공시에 적힌 사실만 전해드려요. 투자 권유는 아니에요.\n"
-        f"#공모주 #청약 #{facts.corp_name} #공시"
+        first + "\n\n"
+        + ("\n".join(body) + "\n\n" if body else "")
+        + "청약 생각 있으세요? 댓글로 알려 주세요. 청약 전에 다시 보려면 저장해 두세요\n\n"
+        + f"출처: DART 증권신고서 {rcept_no} · 공시에 적힌 사실만 전해드려요. 투자 권유는 아니에요\n"
+        + " ".join(tags)
     )

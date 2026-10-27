@@ -115,6 +115,23 @@
   .note em, .ask em, .check .why em { font-style:normal; color:var(--ink); font-weight:800; }
   .foot { font-size:23px; font-weight:500; color:var(--mute); line-height:1.5; }
 
+  /* 브랜드 워드마크 ipov: ipo 파란색, i 점만 노란색(dotless ı 위에 점을 따로 얹음). 크기는 font-size 하나로 */
+  .wm { font-weight:900; letter-spacing:-0.045em; line-height:1.05; white-space:nowrap; color:var(--ink); }
+  .wm .b { color:var(--accent); }
+  .wm .dot { position:relative; display:inline-block; }
+  .wm .dot i { position:absolute; left:50%; top:.02em; width:.2em; height:.2em; border-radius:50%; background:var(--amber); transform:translateX(-50%); }
+
+  /* 마지막 장: 브랜드 홍보 (사진 없이 단색 배경) */
+  .outro { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:26px; padding:0 72px; position:relative; }
+  .outro .tagline { font-size:40px; font-weight:500; color:var(--sub); }
+  .outro .reading { font-size:28px; font-weight:600; color:var(--mute); margin-top:-14px; }
+  .outro .benefits { align-self:stretch; margin-top:26px; padding:38px 44px; border-radius:32px; display:flex; flex-direction:column; gap:26px; }
+  .outro .benefit { display:flex; gap:20px; align-items:center; font-size:34px; font-weight:700; }
+  .outro .benefit svg { width:40px; height:40px; flex-shrink:0; }
+  .outro .follow { align-self:stretch; background:var(--accent); color:#0F1115; border-radius:28px; padding:34px 44px; display:flex; flex-direction:column; gap:8px; }
+  .outro .follow b { font-size:42px; font-weight:800; letter-spacing:-0.02em; }
+  .outro .follow span { font-size:30px; font-weight:700; opacity:.8; }
+
   /* 출처 띠: 모든 카드 하단 고정 */
   .source { position:relative; display:flex; align-items:center; gap:14px; padding:26px 72px 40px; font-size:22px; font-weight:600; color:var(--mute); border-top:1px solid rgba(255,255,255,.10); margin-top:28px; background:rgba(15,17,21,.35); backdrop-filter:blur(12px); }
   .source svg { width:26px; height:26px; flex-shrink:0; }
@@ -122,8 +139,27 @@
 </style>
 </head>
 <body>
+{% macro wordmark(size) -%}
+<span class="wm" style="font-size:{{ size }}px"><span class="b"><span class="dot">ı<i></i></span>po</span>v</span>
+{%- endmacro %}
 <div class="card">
-{% if card.kind == 'image' %}
+{% if card.kind == 'outro' %}
+  <div class="top">
+    {{ wordmark(46) }}
+    <span class="page">{{ card.n }}/{{ total }}</span>
+  </div>
+  <div class="outro">
+    {{ wordmark(220) }}
+    <div class="tagline">{{ card.data.brand.tagline }}</div>
+    {% if card.data.brand.reading %}<div class="reading">{{ card.data.brand.reading }}</div>{% endif %}
+    <div class="benefits glass">
+      {% for b in card.data.brand.benefits %}
+      <div class="benefit"><svg viewBox="0 0 24 24" fill="none" stroke="#5EA9FF" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M7.5 12.5l3 3 6-6.5"/></svg><span>{{ b }}</span></div>
+      {% endfor %}
+    </div>
+    <div class="follow"><b>{{ card.data.brand.cta }}</b>{% if card.data.brand.handle %}<span>{{ card.data.brand.handle }}</span>{% endif %}</div>
+  </div>
+{% elif card.kind == 'image' %}
   <div class="hero">
     <img src="{{ image }}" alt="">
     <div class="tint"></div>
@@ -131,7 +167,7 @@
     <div class="shade"></div>
   </div>
   <div class="top">
-    {% if card.n == 1 %}<span class="page">공모주 브리핑</span>{% else %}
+    {% if card.n == 1 %}{{ wordmark(48) }}{% else %}
       <span class="brand">{% if logo %}<span class="chip {{ logo_tone }}"><img src="{{ logo }}" alt=""></span>{% endif %}<span class="corp">{{ corp }}</span></span>{% endif %}
     <span class="badge">{{ card.data.badge }}</span>
   </div>
@@ -223,6 +259,7 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="#8B95A1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v6c0 5-3.5 8.5-8 9-4.5-.5-8-4-8-9V6l8-3z"/><path d="M9 12l2 2 4-4"/></svg>
     <span>{{ card.data.source }}</span>
     <span class="right">투자 권유 아님</span>
+    {% if card.kind != 'outro' %}<span style="margin-left:18px">{{ wordmark(26) }}</span>{% endif %}
   </div>
 </div>
 </body>

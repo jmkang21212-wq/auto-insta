@@ -108,6 +108,11 @@ def run(adapter: Adapter, date_from: str, date_to: str, only_rcept: str | None, 
             if facts.revenue_krw and occ < 2:
                 problems.append(f"매출 숫자가 원문에 {occ}번만 나옴 (열 선택 오류 의심)")
             problems += check_forbidden(summary.business_lines + [facts.industry or ""] + [l for pair in summary.risk_lines for l in pair])
+            # 캡션도 카드와 같은 기준으로: 숫자는 facts·derived에서만 (출처 줄의 접수번호는 제외), 금지어 없음
+            cap = cardmod.caption(facts, d.rcept_no, summary)
+            cap_body = "\n".join(l for l in cap.splitlines() if not l.startswith("출처:"))
+            problems += [f"캡션: {p}" for p in check_numbers([cap_body], facts) if not any(f"'{k}'" in p for k in allowed_derived)]
+            problems += [f"캡션: {p}" for p in check_forbidden([cap_body])]
             verified = not problems
             db.add_fact(issue_ids[d.rcept_no], facts.model_dump(), {"summary": summary.model_dump(), "by": how, "derived": derived},
                         verified, "; ".join(problems) if problems else None)
@@ -121,7 +126,6 @@ def run(adapter: Adapter, date_from: str, date_to: str, only_rcept: str | None, 
             logo_path, logo_how = fetch_logo(facts.corp_name, facts.homepage)
             log("logo", corp=d.corp_name, homepage=facts.homepage, result=logo_how)
             paths, image_log = render(card_list, facts.corp_name, facts.industry or "", out, d.rcept_no)
-            cap = cardmod.caption(facts, d.rcept_no)
             (out / f"{d.rcept_no}_caption.txt").write_text(cap, encoding="utf-8")
             db.add_post(run_id, issue_ids[d.rcept_no], [c.__dict__ for c in card_list], [str(p) for p in paths], cap)
             if facts.listing_date:

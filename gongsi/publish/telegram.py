@@ -35,14 +35,19 @@ def chat_id() -> str:
 
 def send_for_approval(post: Post) -> dict:
     """미디어 그룹 + 버튼 메시지. 돌려주는 dict를 meta['telegram']에 저장한다."""
-    imgs = post.images[:10]
-    media = []
-    files = {}
-    for i, p in enumerate(imgs):
-        key = f"img{i}"
-        files[key] = (p.name, p.read_bytes(), "image/jpeg")
-        media.append({"type": "photo", "media": f"attach://{key}"})
-    _api("sendMediaGroup", chat_id=chat_id(), media=json.dumps(media), files=files)
+    imgs = post.images
+    # 텔레그램 미디어 그룹은 2~10장. 11장(브랜드 홍보 장 포함)이면 10장 + 1장으로 나눠 보낸다
+    for start in range(0, len(imgs), 10):
+        chunk = imgs[start:start + 10]
+        if len(chunk) == 1:
+            _api("sendPhoto", chat_id=chat_id(), files={"photo": (chunk[0].name, chunk[0].read_bytes(), "image/jpeg")})
+            continue
+        media, files = [], {}
+        for i, p in enumerate(chunk):
+            key = f"img{i}"
+            files[key] = (p.name, p.read_bytes(), "image/jpeg")
+            media.append({"type": "photo", "media": f"attach://{key}"})
+        _api("sendMediaGroup", chat_id=chat_id(), media=json.dumps(media), files=files)
 
     head = f"[{post.meta['corp']}] {post.meta['n']}장 · {post.meta['date']}\n접수번호 {post.rcept_no}\n\n"
     text = (head + post.caption)[:3900]
