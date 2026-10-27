@@ -94,10 +94,12 @@ def test_bad_hooks_rejected():
 
 
 def test_second_line_numbers():
-    assert line2(FACTS) == "23만원부터 청약 가능 💸"
+    """둘째 줄은 경쟁률 (2026-10-28: 얼마부터 청약 가능보다 경쟁률이 더 궁금함)"""
+    assert line2(FACTS) == "경쟁률은 청약 전에 공개 👀"  # 수요예측 날짜를 못 읽었을 때
+    assert line2(FACTS.model_copy(update={"forecast_end": "2026-10-28"})) == "경쟁률은 10월 28일 이후 공개 👀"
     hot = IpoFacts(corp_name="x", demand_ratio=1134.5)
-    assert line2(hot) == "경쟁률 1,134.5:1 🔥"
-    assert line2(IpoFacts(corp_name="x", demand_ratio=88.2)) == "경쟁률 88.2:1 👀"
+    assert line2(hot) == "기관 경쟁률 1,134.5:1 🔥"
+    assert line2(IpoFacts(corp_name="x", demand_ratio=88.2)) == "기관 경쟁률 88.2:1 👀"
 
 
 def test_video_tag_scoring():

@@ -18,7 +18,7 @@ from gongsi import cards as cardmod
 from gongsi.adapters.base import Adapter
 from gongsi.config import settings
 from gongsi.db import DB
-from gongsi.hook import line2, make_hooks
+from gongsi.hook import line2, make_hooks, previous_hook
 from gongsi.models import Disclosure
 from gongsi.logos import fetch_logo
 from gongsi.reel import make_reel
@@ -117,6 +117,15 @@ def run(adapter: Adapter, date_from: str, date_to: str, only_rcept: str | None, 
             except Exception as e:  # noqa: BLE001
                 hooks = []
                 log("hook", corp=d.corp_name, ok=False, error=str(e)[:200])
+            # 수요예측 뒤(경쟁률 릴스)엔 앞서 올린 같은 회사 릴스의 훅을 1번으로: 같은 비유 + '기관 경쟁률 N:1 🔥'로 이어지게
+            if facts.demand_ratio is not None:
+                try:
+                    prev = previous_hook(facts)
+                except Exception as e:  # noqa: BLE001
+                    prev = None
+                    log("hook", corp=d.corp_name, previous=False, error=str(e)[:200])
+                if prev:
+                    hooks = [prev] + [h for h in hooks if h.title != prev.title][:2]
             log("hook", corp=d.corp_name, hooks=[f"{h.headline()} / {h.sub} / {h.video}" for h in hooks])
             # 훅 릴스: 위 훅 + 둘째 줄 숫자, 가운데 훅의 물건 스톡 영상 + 자막. 1번 훅에 맞는 영상이 없으면 2·3번으로,
             # 셋 다 없으면 릴스 없이 카드 캐러셀로 간다. 캡션도 실제로 쓴 훅으로 만든다

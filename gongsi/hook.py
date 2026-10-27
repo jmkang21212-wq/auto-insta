@@ -228,17 +228,38 @@ def make_hooks(facts: IpoFacts) -> list[Hook]:
     return hooks
 
 
+def previous_hook(facts: IpoFacts) -> Hook | None:
+    """같은 회사의 수요예측 전 게시물(posts/)에서 고른 훅. 경쟁률 릴스를 같은 비유로 이어 가려고
+    (사용자가 고른 형식: "반도체 장비 속 '샤워기' 만드는 회사가 상장함 / 경쟁률 ~ 🔥"). 근거 대조를 다시 통과해야 씀"""
+    import json
+
+    from gongsi.publish.store import all_posts
+
+    for post in reversed(all_posts()):
+        f = post.dir / "bundle.json"
+        if post.meta.get("corp") != facts.corp_name or post.meta.get("phase") != "pre" or not f.exists():
+            continue
+        b = json.loads(f.read_text(encoding="utf-8"))
+        if not b.get("hooks"):
+            continue
+        raw = b["hooks"][min(int(b.get("chosen") or 0), len(b["hooks"]) - 1)]
+        h = Hook(**{k: str(raw.get(k, "")) for k in ("title", "term", "emoji", "sub", "video")})
+        if check_hook(h, facts):
+            return None
+        h.explain = explain_line(h.term, facts.glossary, aliases(facts.business_evidence), h.title, facts.business_evidence)
+        return h
+    return None
+
+
 def line2(facts: IpoFacts) -> str:
-    """둘째 줄: 숫자 하나 + 이모지. 수요예측 뒤엔 경쟁률, 전엔 최소 증거금(밴드 하단 기준), 그것도 없으면 청약일"""
-    from gongsi.cards import man, ratio
+    """둘째 줄: 경쟁률 (2026-10-28 사용자 피드백: '얼마부터 청약 가능'보다 경쟁률이 더 궁금함).
+    수요예측 뒤엔 기관 경쟁률 + 🔥(500:1 이상)/👀, 전엔 경쟁률이 언제 나오는지(신고서의 수요예측 마감일).
+    청약 전에 나오는 건 기관 수요예측 경쟁률이라 '기관'을 붙인다 (일반 청약 경쟁률은 청약 당일 증권사가 발표)"""
+    from gongsi.cards import ratio
 
     if facts.demand_ratio is not None:
-        return f"경쟁률 {ratio(facts.demand_ratio)} {'🔥' if facts.demand_ratio >= HOT_RATIO else '👀'}"
-    if facts.min_deposit_krw:
-        return f"{man(facts.min_deposit_krw)}원이면 청약 가능 💸"
-    if facts.min_shares and facts.deposit_rate_pct and facts.band_low_krw:
-        return f"{man(facts.min_shares * facts.band_low_krw * facts.deposit_rate_pct // 100)}원부터 청약 가능 💸"
-    if facts.subscription_start:
-        m, d = int(facts.subscription_start[5:7]), int(facts.subscription_start[8:10])
-        return f"{m}월 {d}일 청약 시작 ⏰"
-    return ""
+        return f"기관 경쟁률 {ratio(facts.demand_ratio)} {'🔥' if facts.demand_ratio >= HOT_RATIO else '👀'}"
+    if facts.forecast_end:
+        m, d = int(facts.forecast_end[5:7]), int(facts.forecast_end[8:10])
+        return f"경쟁률은 {m}월 {d}일 이후 공개 👀"
+    return "경쟁률은 청약 전에 공개 👀"
