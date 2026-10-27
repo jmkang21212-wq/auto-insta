@@ -25,7 +25,11 @@ ROOT = settings.templates_dir.parent.parent
 USED = ROOT / "state" / "used_media.json"
 CACHE = settings.out_dir / "videos"
 W, H, SECONDS = 1080, 1920, 7
-VIDEO_TOP, VIDEO_H = 600, 780  # 영상 자리. 그 아래 '자세한 내용' 줄은 릴스 화면의 아이디·캡션 글자에 가리지 않을 높이
+# 릴스 화면 안전 영역: 위 14%(약 270px)는 인스타 앱 상단(상태 표시줄·릴스 머리글)에, 아래 약 25%는 아이디·캡션·오디오 줄에 가린다.
+# 2026-10-27 사용자 피드백 "아이폰에서 로고 윗부분이 가려짐"으로 로고를 84px → 270px로 내리고 영상 높이를 줄였다.
+# (14%는 업계 가이드에 흔히 쓰는 값이고 메타 공식 문서로는 확인 필요)
+SAFE_TOP, SAFE_BOTTOM = 270, 1440
+VIDEO_TOP, VIDEO_H = 660, 680  # 영상 자리. 그 아래 '자세한 내용' 줄까지 SAFE_BOTTOM 안
 
 
 def used_ids() -> set[str]:
@@ -146,36 +150,57 @@ def split_title(text: str, max_w: float = 11.0) -> list[str]:
     return [" ".join(words[:best[1]]), " ".join(words[best[1]:])]
 
 
-def overlay_png(title: str, second: str, sub: str, out: Path) -> Path:
-    """영상 자리만 투명한 글자 판"""
-    from playwright.sync_api import sync_playwright
-
+def overlay_html(title: str, second: str, sub: str) -> str:
+    """영상 자리만 투명한 글자 판 HTML. 로고·제목·둘째 줄은 SAFE_TOP 아래, '자세한 내용' 줄은 SAFE_BOTTOM 위"""
     from gongsi.render import font_css
 
     esc = lambda s: s.replace("&", "&amp;").replace("<", "&lt;")  # noqa: E731
     lines = "<br>".join(esc(x) for x in split_title(title))
-    html = f"""<html><head><meta charset=utf-8><style>{font_css()}
+    return f"""<html><head><meta charset=utf-8><style>{font_css()}
 html,body{{margin:0;background:transparent}}
 .c{{width:{W}px;height:{H}px;position:relative;font-family:'Pretendard','Noto Color Emoji'}}
 .top{{position:absolute;left:0;top:0;width:{W}px;height:{VIDEO_TOP}px;background:#0F1115;display:flex;flex-direction:column;align-items:center}}
 .bot{{position:absolute;left:0;top:{VIDEO_TOP + VIDEO_H}px;width:{W}px;height:{H - VIDEO_TOP - VIDEO_H}px;background:#0F1115}}
-.wm{{margin-top:84px;font-size:72px;font-weight:900;letter-spacing:-.045em;color:#F2F4F6;line-height:1}}
+.wm{{margin-top:{SAFE_TOP}px;font-size:64px;font-weight:900;letter-spacing:-.045em;color:#F2F4F6;line-height:1}}
 .wm .b{{color:#5EA9FF}} .wm .dot{{position:relative;display:inline-block}}
 .wm .dot i{{position:absolute;left:50%;top:.02em;width:.2em;height:.2em;border-radius:50%;background:#F5C84B;transform:translateX(-50%)}}
-.t{{margin-top:44px;text-align:center;color:#fff;font-size:84px;font-weight:900;line-height:1.18;letter-spacing:-.035em;word-break:keep-all}}
-.s{{margin-top:18px;color:#F5C84B;font-size:60px;font-weight:800;letter-spacing:-.02em}}
-.sub{{position:absolute;top:{VIDEO_TOP + VIDEO_H - 120}px;left:0;width:{W}px;text-align:center;color:#fff;font-size:62px;font-weight:900;text-shadow:0 3px 14px #000,0 0 4px #000}}
-.tag{{position:absolute;top:{VIDEO_TOP + 24}px;left:28px;font-size:26px;font-weight:600;color:rgba(255,255,255,.85);background:rgba(0,0,0,.45);padding:6px 14px;border-radius:999px}}
-.ar{{position:absolute;top:{VIDEO_TOP + VIDEO_H + 70}px;left:0;width:{W}px;text-align:center;color:#5EA9FF;font-size:56px;font-weight:800}}
+.t{{margin-top:30px;text-align:center;color:#fff;font-size:80px;font-weight:900;line-height:1.16;letter-spacing:-.035em;word-break:keep-all}}
+.s{{margin-top:14px;color:#F5C84B;font-size:56px;font-weight:800;letter-spacing:-.02em;line-height:1.1}}
+.sub{{position:absolute;top:{VIDEO_TOP + VIDEO_H - 112}px;left:0;width:{W}px;text-align:center;color:#fff;font-size:58px;font-weight:900;text-shadow:0 3px 14px #000,0 0 4px #000}}
+.tag{{position:absolute;top:{VIDEO_TOP + 24}px;left:72px;font-size:26px;font-weight:600;color:rgba(255,255,255,.85);background:rgba(0,0,0,.45);padding:6px 14px;border-radius:999px}}
+.ar{{position:absolute;top:{VIDEO_TOP + VIDEO_H + 34}px;left:0;width:{W}px;text-align:center;color:#5EA9FF;font-size:50px;font-weight:800;line-height:1.1}}
 </style></head><body><div class=c>
 <div class=top><div class=wm><span class=b><span class=dot>ı<i></i></span>po</span>v</div>
 <div class=t>{lines}</div><div class=s>{esc(second)}</div></div>
 <div class=tag>자료 화면</div><div class=sub>{esc(sub)}</div>
 <div class=bot></div><div class=ar>▼ 자세한 내용은 아래에 ▼</div></div></body></html>"""
+
+
+def layout_boxes(title: str, second: str, sub: str) -> dict[str, tuple[float, float]]:
+    """글자 판 요소의 세로 위치 {이름: (위, 아래)}. 안전 영역 시험용"""
+    from playwright.sync_api import sync_playwright
+
     with sync_playwright() as p:
         b = p.chromium.launch()
         pg = b.new_page(viewport={"width": W, "height": H})
-        pg.set_content(html, wait_until="load")
+        pg.set_content(overlay_html(title, second, sub), wait_until="load")
+        pg.wait_for_timeout(300)
+        out = {}
+        for name in ("wm", "t", "s", "sub", "tag", "ar"):
+            bb = pg.locator(f".{name}").bounding_box()
+            out[name] = (bb["y"], bb["y"] + bb["height"])
+        b.close()
+    return out
+
+
+def overlay_png(title: str, second: str, sub: str, out: Path) -> Path:
+    """영상 자리만 투명한 글자 판"""
+    from playwright.sync_api import sync_playwright
+
+    with sync_playwright() as p:
+        b = p.chromium.launch()
+        pg = b.new_page(viewport={"width": W, "height": H})
+        pg.set_content(overlay_html(title, second, sub), wait_until="load")
         pg.wait_for_timeout(300)
         pg.screenshot(path=str(out), omit_background=True)
         b.close()

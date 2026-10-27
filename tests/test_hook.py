@@ -9,7 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from gongsi.adapters.dart_doc import parse  # noqa: E402
 from gongsi.hook import Hook, aliases, check_hook, display_term, explain_line, line2  # noqa: E402
 from gongsi.models import IpoFacts  # noqa: E402
-from gongsi.reel import _has_people, _keywords, _score, split_title  # noqa: E402
+from gongsi.reel import SAFE_BOTTOM, SAFE_TOP, VIDEO_H, VIDEO_TOP, _has_people, _keywords, _score, layout_boxes, split_title  # noqa: E402
 
 GLOSSARY_DOC = """II. 사업의 내용
 사업에 대한 이해를 돕기 위해 당사가 영위하는 사업 분야 및 기술, 제품에 대한 전문용어 해설을 아래 표와 같이 기재합니다.
@@ -116,6 +116,15 @@ def test_video_tag_scoring():
 
 def test_title_split_two_balanced_lines():
     assert split_title("반도체 '샤워기' 만드는 회사가 상장함") == ["반도체 '샤워기'", "만드는 회사가 상장함"]
+
+
+def test_reel_text_inside_safe_zone():
+    """릴스 글자가 인스타 화면 위·아래 가림 영역 밖에 (2026-10-27 '아이폰에서 로고 윗부분이 가려짐' 피드백). 브라우저로 실제 배치를 잰다"""
+    bx = layout_boxes("비행기 '균형 감각' 만드는 회사가 상장함", "(경쟁률 1,134.5:1 🔥)", "비행기용 달팽이관")
+    assert bx["wm"][0] >= SAFE_TOP, bx  # 로고
+    assert bx["s"][1] <= VIDEO_TOP - 20, bx  # 둘째 줄이 영상에 안 겹침
+    assert VIDEO_TOP <= bx["sub"][0] and bx["sub"][1] <= VIDEO_TOP + VIDEO_H, bx  # 자막은 영상 안
+    assert bx["ar"][1] <= SAFE_BOTTOM, bx  # '자세한 내용' 줄은 아이디·캡션 줄 위
 
 
 if __name__ == "__main__":
