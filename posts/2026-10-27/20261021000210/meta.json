@@ -1,0 +1,12 @@
+{
+ "corp": "옵토닉스",
+ "rcept_no": "20261021000210",
+ "date": "2026-10-27",
+ "n": 9,
+ "status": "pending",
+ "source_run": "run1",
+ "format": "reel",
+ "reel": "reel.mp4",
+ "phase": "pre",
+ "subscription_start": "2026-11-05"
+}
