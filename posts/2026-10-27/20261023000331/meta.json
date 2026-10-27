@@ -6,5 +6,9 @@
  "status": "pending",
  "source_run": "run1",
  "phase": "pre",
- "subscription_start": "2026-11-02"
+ "subscription_start": "2026-11-02",
+ "telegram": {
+  "message_id": 17,
+  "chat_id": 8647980564
+ }
 }
