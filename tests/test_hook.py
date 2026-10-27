@@ -66,6 +66,12 @@ def test_bad_hooks_rejected():
     assert any("대박" in p for p in check_hook(hype, FACTS))
     korean_query = Hook(title=GOOD.title, term="샤워헤드", emoji="🚿", sub="진짜 샤워기 아님", video="샤워기 물줄기")
     assert any("영상 검색어" in p for p in check_hook(korean_query, FACTS))
+    rocket = Hook(title=GOOD.title, term="샤워헤드", emoji="🚀", sub="진짜 샤워기 아님", video="shower head")
+    assert any("🚀" in p for p in check_hook(rocket, FACTS))  # 브랜드 규칙의 상승 암시 이모지
+    sure = Hook(title=GOOD.title, term="샤워헤드", emoji="🚿", sub="무조건 샤워기", video="shower head")
+    assert any("무조건" in p for p in check_hook(sure, FACTS))
+    dash = Hook(title=GOOD.title, term="샤워헤드", emoji="🚿", sub="샤워기 — 아님", video="shower head")
+    assert any("긴 대시" in p for p in check_hook(dash, FACTS))
 
 
 def test_second_line_numbers():

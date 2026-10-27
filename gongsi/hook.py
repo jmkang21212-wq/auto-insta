@@ -145,7 +145,7 @@ def check_hook(h: Hook, facts: IpoFacts) -> list[str]:
             problems.append(f"{name}에 긴 대시: {text}")
         if line_width(text) > limit:
             problems.append(f"{name}이 너무 김({line_width(text):.1f}): {text}")
-    problems += check_forbidden([h.title, h.sub])
+    problems += check_forbidden([h.title, h.sub, h.emoji])  # 이모지도 (🚀📈 같은 상승 암시)
     if not re.fullmatch(r"[A-Za-z][A-Za-z \-]{2,40}", h.video or ""):
         problems.append(f"영상 검색어가 영어 2~4단어가 아님: {h.video}")
     return problems
