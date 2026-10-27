@@ -3,7 +3,7 @@
  "rcept_no": "20261019000368",
  "date": "2026-10-28",
  "n": 0,
- "status": "pending",
+ "status": "rejected",
  "source_run": "manual",
  "format": "reel",
  "reel": "reel.mp4",
@@ -19,5 +19,6 @@
   "message_id": 35,
   "chat_id": 8647980564,
   "format": "reel"
- }
+ },
+ "hold_reason": "2026-10-28 사용자: 경쟁률 나온 회사만 올리기로 함 → 수요예측 결과 전 게시물이라 보류. 결과 나오면 같은 훅으로 경쟁률 릴스"
 }
