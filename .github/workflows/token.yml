@@ -1,7 +1,7 @@
 name: refresh instagram token
 on:
   schedule:
-    - cron: "0 1 * * 1"   # 매주 월요일 10:00 KST. 장기 토큰은 60일짜리라 매주 연장하면 안전
+    - cron: "13 1 * * 1"   # 매주 월요일 10:13 KST. 장기 토큰은 60일짜리라 매주 연장하면 안전
   workflow_dispatch:
 
 jobs:

@@ -1,7 +1,7 @@
 name: generate cards
 on:
   schedule:
-    - cron: "30 22 * * 0-4"   # 월~금 07:30 KST (UTC 22:30 전날)
+    - cron: "23 22 * * 0-4"   # 월~금 07:23 KST (UTC 22:23 전날). 정각·30분 피함
   workflow_dispatch:
     inputs:
       days:
