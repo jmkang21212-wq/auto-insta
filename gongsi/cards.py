@@ -537,8 +537,8 @@ def caption(facts: IpoFacts, rcept_no: str, summary: Summary | None = None, doc:
         blocks.append(nxt)
 
     blocks.append([f"📄 DART {doc} {rcept_no}", credit, "※ 투자 권유 아님, 판단은 각자 몫"])
-    handle = BRAND.get("handle", "")
-    blocks.append([f"🪄 청약 전에 볼 숫자, 제일 먼저 받아보기{' @' + handle if handle else ''}"])
+    handle = BRAND.get("handle", "")  # 마무리: 고정 문구 + 다음 줄 계정 아이디 (2026-10-27 사용자 지정)
+    blocks.append([BRAND.get("caption_cta", "🪄 공모주 분석, 제일 먼저 받아보기")] + ([f"@{handle}"] if handle else []))
     tags = ["#공모주", "#공모주청약", "#" + corp.replace(" ", ""), "#청약일정", BRAND.get("hashtag", "")]
     blocks.append([" ".join([t for t in dict.fromkeys(tags) if t and t != "#"][:5])])
     blocks = [[l for l in b if l] for b in blocks]  # 값이 없어 비는 줄은 빼서 덩어리 안에 빈 줄이 생기지 않게
