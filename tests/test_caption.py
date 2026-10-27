@@ -1,7 +1,8 @@
 """캡션 규칙 시험. pytest로도, `python tests/test_caption.py` 로도 돌아갑니다.
 
-규칙(2026-10-27 '말투가 AI 같고 줄바꿈이 제멋대로' 피드백):
-덩어리 사이 빈 줄 하나, 한 줄에 한 가지, 휴대폰 한 줄 폭 안, 숫자는 facts에서만, 해시태그 5개 이하.
+캡션 모양(2026-10-27, ekke.now 참고): 카드는 훅, 자세한 내용은 캡션. 음슴체 정리 노트로
+'-' 사실 / ':' 용어 풀이 / '→' 숫자가 뜻하는 것, 이모지 질문 소제목, 출처·면책, 고정 문구, 해시태그 5개.
+줄 규칙: 덩어리 사이 빈 줄 하나, 휴대폰 한 줄 폭 안(긴 문장은 조사·쉼표 뒤에서 끊음), 날짜는 안 끊음.
 """
 from __future__ import annotations
 
@@ -48,44 +49,46 @@ def assert_clean(cap: str, facts: IpoFacts) -> None:
     assert facts.corp_name in blocks[0].split("\n")[0]  # 첫 줄에 회사명 (검색·미리보기)
     assert blocks[-1].startswith("#") and blocks[-1].count("#") <= 5
     assert all(b.strip() for b in blocks)  # 빈 덩어리 없음
+    assert " " not in cap  # 줄 나눔 방지용 공백은 결과에 남지 않음
 
 
 def test_pre_forecast_real():
     f = IpoFacts(**DONGWON)
     cap = cards.caption(f, "20261023000331")
     assert_clean(cap, f)
-    lines = cap.split("\n")
-    assert lines[0] == "⏰ 동원파츠 공모주, 11월 2일 청약 시작"
-    assert lines[1] == "👀 상장일 유통 가능 물량이 29.47%라고요?"  # '더 보기' 전 미리보기 = 숫자 훅
-    assert cap.count("29.47%") == 1  # 훅에 쓴 숫자는 다시 안 씀
-    for want in ("📅 청약 11월 2일(월)~3일(화)", "🏦 청약은 삼성증권에서", "💰 희망 공모가 23,000~26,500원",
-                 "💸 최소 증거금 23만~26.5만원 (밴드 기준)", "📌 수요예측은 10월 28일(수)까지",
-                 "결과 나오면 경쟁률·확약 들고 다시 올게요!", "반도체 장비 부품 회사고, 숫자는 이래요 👇"):
+    assert cap.split("\n")[0] == "🔔 동원파츠, 11월 2일 청약 열림"
+    for want in ("11월 2일(월)~3일(화) 일반 청약", "- 상장일 유통 가능 물량은 29.47%", ": 상장 첫날부터 팔 수 있는 주식 비율을 뜻함",
+                 "→ 10주 중 약 3주꼴로", "- 희망 공모가 23,000~26,500원", "💸 얼마 있어야 청약 가능?",
+                 "- 최소 증거금 23만~26.5만원 (밴드 기준)", "- 청약은 삼성증권에서", "📊 경쟁률·확약은 언제 나옴?",
+                 "→ 결과 나오면 경쟁률·확약 들고 다시 옴", "※ 투자 권유 아님", "🪄 청약 전에 볼 숫자"):
         assert want in cap, want
-    assert "댓글" not in cap  # 저장 유도 한 줄만
+    assert "🏢 어떤 회사임?\n- 반도체 장비 부품 회사" in cap  # 제목에 업종이 안 들어가면 따로 씀
 
 
 def test_post_forecast_sample():
     f = sample()
     cap = cards.caption(f, "20261026999001")
     assert_clean(cap, f)
-    lines = cap.split("\n")
-    assert lines[0] == "📢 샘플전자 수요예측 결과 나왔어요"
-    assert lines[1] == "👀 경쟁률 1,134.5:1, 그럼 확약은?"
-    assert cap.count("1,134.5:1") == 1 and cap.count("5.2%") == 1
-    for want in ("💰 확정 공모가 21,000원 (밴드 맨 위)", "🏦 청약은 삼성증권, KB증권에서", "💸 최소 증거금 21만원",
-                 "🔒 의무보유 확약 5.2%", "🔓 상장일 유통 가능 물량 31.4%", "🗓️ 환불 11월 6일(금), 상장 11월 12일(목)"):
+    assert cap.split("\n")[0] == "📢 샘플전자 경쟁률 1,134.5:1 나옴"
+    for want in ("- 의무보유 확약은 5.2%", "→ 나머지는 상장 첫날부터 팔 수 있음", "밴드 맨 위에서 정해짐", "🏢 어떤 회사임?",
+                 "- 최소 증거금 21만원", "- 상장 예정일은 11월 12일(목)", "11월 3일(화)~4일(수)"):
         assert want in cap, want
     assert "결과 나오면" not in cap
 
 
-def test_long_names_fall_back_to_short_lines():
+def test_long_names_and_text_wrap_inside_phone_width():
     f = IpoFacts(**{**DONGWON, "corp_name": "에이엔에이치스트럭쳐", "industry": "AI 기반 의료 영상 진단 솔루션",
                     "underwriters": ["한국투자증권", "NH투자증권", "KB증권"]})
     cap = cards.caption(f, "20261020000375")
     assert_clean(cap, f)
-    assert "🏦 청약은 한국투자증권 외 2곳에서" in cap
-    assert "AI 기반 의료 영상 진단 솔루션 회사예요.\n숫자는 이래요 👇" in cap  # 한 줄에 안 들어가면 두 줄로
+    assert "- 청약은 한국투자증권 외 2곳에서" in cap
+
+
+def test_wrap_prefers_particles_and_keeps_dates():
+    lines = cards.wrap(": 기관들이 써낸 주식 수가 배정 물량의 1,134.5배였다는 뜻")
+    assert lines == [": 기관들이 써낸 주식 수가", "배정 물량의 1,134.5배였다는 뜻"]
+    lines = cards.wrap("- 코스닥 상장 앞두고 " + cards.nb("11월 2일(월)~3일(화)") + " 일반 청약")
+    assert any("11월 2일(월)~3일(화)" in l for l in lines)
 
 
 def test_band_position_outside_band():
@@ -104,16 +107,7 @@ def test_dates_cross_month_and_single_day():
 
 def test_sparse_facts_no_blank_lines():
     f = IpoFacts(corp_name="에이엔에이치스트럭쳐", subscription_start="2026-11-27", subscription_end="2026-11-30")
-    cap = cards.caption(f, "20261020000375")
-    assert_clean(cap, f)
-    assert "수요예측 결과" not in cap or "결과 나오면" in cap
-
-
-def test_industry_ending_with_company_word():
-    f = IpoFacts(**{**DONGWON, "industry": "바이오 기업"})
-    assert "바이오 기업이고, 숫자는 이래요 👇" in cards.caption(f, "1")
-    f = IpoFacts(**{**DONGWON, "industry": "AI 반도체 설계"})
-    assert "AI 반도체 설계 회사고, 숫자는 이래요 👇" in cards.caption(f, "1")
+    assert_clean(cards.caption(f, "20261020000375"), f)
 
 
 def test_layout_check_catches_old_style():
@@ -128,7 +122,7 @@ def test_layout_check_catches_old_style():
 def test_deposit_and_brokers():
     assert cards.man(230000) == "23만" and cards.man(265000) == "26.5만" and cards.man(1375000) == "137.5만"
     f = IpoFacts(**{**DONGWON, "underwriters": ["한국투자증권", "NH투자증권", "KB증권", "신한투자증권"]})
-    assert cards.broker_text(f) == "🏦 청약은 한국투자증권 외 3곳에서"
+    assert cards.broker_text(f) == "한국투자증권 외 3곳"
     d: dict[str, str] = {}
     cards.deposit_text(f, d)
     assert "26.5" in d and "min_shares 20" in d["26.5"]
@@ -138,8 +132,7 @@ def test_deposit_and_brokers():
 def test_investment_doc_name():
     assert cards.doc_kind("[기재정정]투자설명서") == "투자설명서"
     assert cards.doc_kind("[발행조건확정]증권신고서(지분증권)") == "증권신고서"
-    cap = cards.caption(sample(), "20261021000341", doc="투자설명서")
-    assert "출처: DART 투자설명서 20261021000341" in cap
+    assert "📄 DART 투자설명서 20261021000341" in cards.caption(sample(), "20261021000341", doc="투자설명서")
 
 
 if __name__ == "__main__":
@@ -148,5 +141,3 @@ if __name__ == "__main__":
         t()
         print("ok", t.__name__)
     print(f"{len(tests)} passed")
-    print("\n--- 동원파츠 (실제 공시, 수요예측 전) ---\n" + cards.caption(IpoFacts(**DONGWON), "20261023000331"))
-    print("\n--- 샘플전자 (가상, 수요예측 뒤) ---\n" + cards.caption(sample(), "20261026999001"))
