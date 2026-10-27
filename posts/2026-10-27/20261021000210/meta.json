@@ -22,5 +22,6 @@
   "audio_id": null,
   "published_at": "2026-10-27",
   "by": "telegram"
- }
+ },
+ "caption_note": "인스타에 올라간 캡션은 caption_published.txt(자이로스코프 정의 없는 첫 판). caption.txt는 보강판: 앱에서 캡션 수정 때 붙여 넣기용"
 }
