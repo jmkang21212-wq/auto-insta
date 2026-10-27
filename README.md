@@ -111,9 +111,13 @@ ekke.now 방식으로 바꿨습니다. 릴스 화면은 1초 안에 이해되는
   (예: 반도체 '샤워기' 만드는 회사가 상장함 ← 샤워헤드 = 공정 가스를 균일하게 분사하는 부품). 근거 용어가 신고서에 없거나
   숫자·금지어가 있으면 코드가 버립니다. 둘째 줄은 숫자 하나 + 이모지(수요예측 뒤 경쟁률, 500:1 이상 🔥 / 전엔 최소 증거금 💸).
 - 영상(`gongsi/reel.py`, 7초 1080x1920): 훅의 물건으로 Pixabay 영상을 찾고 태그가 그 물건과 맞는 것만 씁니다(선정적인 장면 제외).
-  '자료 화면' 표시, 쓴 영상은 `state/used_media.json`에 남겨 다시 안 씁니다. 소리는 비워 두고 음악은 게시 때 인스타 음악 API로 붙일 예정(Facebook 로그인 필요).
+  '자료 화면' 표시, 게시 대기열에 오른 릴스의 영상은 `state/used_media.json`에 남겨 다시 안 씁니다(검증에서 떨어진 릴스의 영상은 안 남김).
+  소리는 비워 두고 음악은 게시 때 인스타 음악 API로 붙일 예정(Facebook 로그인 토큰 필요, 지금 토큰은 Instagram 로그인이라 불가).
 - 캡션(`cards.caption`): 훅 → 신고서 용어 풀이 → 핵심 숫자(해석·유명 공모주 비교) → 🏢 회사 → 💸 청약 실무 → 💰 모은 돈 용도
   → ⚠️ 회사가 밝힌 위험 → 📊 다음 소식 → 출처·자료 화면·면책 → 고정 문구 → 해시태그 5개. 숫자·금지어·줄 규칙은 검증 단계가 대조합니다.
+  훅의 비유는 캡션 둘째 줄에서 신고서 용어 해설 문장 그대로 풀어 줍니다. 해설 표 키가 영어뿐이면('Spin Chuck') 사업 원문의
+  '스핀척(Spin Chuck)' 짝으로 찾고, 해설이 없는 용어면 "'턴테이블'은 이 회사 제품 스핀척을 빗댄 말임"처럼 무엇을 빗댔는지만 밝힙니다.
+  한 줄에 한 문장: 위험 풀이처럼 두 문장이면 문장마다 ':'로 새로 시작하고 끝 마침표는 뗍니다. 검증에서 걸리면 텔레그램으로 이유를 알립니다.
 - 텔레그램: 릴스 영상 + 훅 후보 3개 + 캡션 + [이 릴스로 게시] [넘기기] [N번 훅으로]. N번을 누르면 다음 확인 때 그 훅으로 릴스·캡션을 다시 만들어 다시 보냅니다.
 - 게시: `instagram.publish_reel` (REELS 컨테이너 → 처리 완료 대기 → 게시, 피드에도 노출). 릴스를 못 만든 날은 카드 캐러셀로 게시합니다.
 
@@ -135,10 +139,17 @@ python -m gongsi.publish list
 - 저장소는 **public** 이어야 합니다 (메타 서버가 raw URL에서 JPEG을 가져감). `DART_API_KEY`, `ANTHROPIC_API_KEY`, `PIXABAY_API_KEY`
 - 텔레그램: @BotFather 로 봇 생성 → `TELEGRAM_BOT_TOKEN`. 봇에게 아무 말이나 보낸 뒤 `https://api.telegram.org/bot<토큰>/getUpdates` 에서 `chat.id` → `TELEGRAM_CHAT_ID`
 - 인스타그램: 프로페셔널(비즈니스/크리에이터) 계정, Meta 개발자 앱에 'Instagram' 제품 추가(Instagram API with Instagram Login), 권한 `instagram_business_basic` + `instagram_business_content_publish`, 그 계정의 장기 액세스 토큰 → `IG_ACCESS_TOKEN`, IG 사용자 ID → `IG_USER_ID`. 앱이 개발 모드여도 앱에 등록한 테스터 계정으로는 게시됩니다 (확인 필요)
-- 토큰 자동 연장(`token.yml`)은 `gh secret set`을 써야 해서 repo 권한 PAT → `GH_PAT`. 없으면 60일마다 손으로 갱신
+- 토큰 자동 연장(`token.yml`): 연장 결과 토큰 문자열이 바뀌면 `gh secret set`으로 저장해야 해서 이 저장소 Secrets 쓰기 권한 PAT → `GH_PAT`.
+  없는데 문자열이 바뀌면 텔레그램으로 알립니다(지금 토큰은 원래 기한까지만 씀)
 - Actions Variables 에 `APPROVAL=auto` 를 두면 승인 없이 게시
 
-스케줄: `generate.yml` 월~금 07:30 KST, `publish.yml` 08:00~22:30 KST 30분마다, `token.yml` 매주 월요일. 전부 `workflow_dispatch` 로 손으로도 실행됩니다. 같은 `concurrency` 그룹이라 두 워크플로가 동시에 푸시하지 않습니다.
+스케줄: 이 저장소에서는 깃허브 예약 실행(`schedule`)이 한 번도 안 돌았습니다(2026-10-27 확인, 새 저장소에서 알려진 문제이고 원인 미확인).
+그래서 Claude 예약 작업 "ipov 공모주 릴스 Actions 깨우기"가 `workflow_dispatch` REST로 대신 실행합니다.
+- 월~금 07:43 KST: 그날(KST) `generate.yml` 실행이 아직 없으면 실행. 생성 → 텔레그램 승인 요청 → 그 실행 안에서 최대 300분 승인을 기다렸다가 바로 게시(`watch`)
+- 월~금 18:43 KST: `publish.yml`(poll) 한 번. 오후에 누른 승인 처리
+- 월요일 아침: `token.yml`(인스타 토큰 연장)도 실행
+workflow 파일의 `schedule`은 예비로 남겨 둡니다(돌기 시작해도 그날 실행이 있으면 예약 작업이 건너뜀). 같은 `concurrency` 그룹이라 동시에 푸시하지 않습니다.
+텔레그램은 받은 버튼 응답을 24시간만 보관하므로, 금요일 18:43 이후에 누른 승인은 월요일 아침엔 사라져 있을 수 있습니다(버튼을 다시 누르면 됨).
 
 인스타그램 API 사실 (2026-10-27 메타 문서 확인): JPEG만, 공개 URL, 캐러셀 최대 20장이고 첫 장 비율로 잘림(우리는 전부 4:5), 게시 한도는 문서에 24시간 100개와 50개가 같이 적혀 있어 `content_publishing_limit` 로 확인, 컨테이너는 `status_code=FINISHED` 뒤에 `media_publish`. 장기 토큰은 60일, 24시간 지난 토큰만 연장 가능.
 

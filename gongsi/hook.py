@@ -59,13 +59,41 @@ class Hook:
         return f"{self.emoji} {self.title}".strip()
 
 
-def _gloss_key(term: str, glossary: dict[str, str]) -> str | None:
-    """'샤워헤드' → 'Showerhead(샤워헤드)' 처럼 용어 해설 표의 키 찾기"""
-    t = term.strip().lower()
-    for k in glossary:
-        kl = k.lower()
-        if t and (t == kl or t in kl or kl in t):
-            return k
+def _norm(s: str) -> str:
+    return re.sub(r"\s+", " ", s.strip().lower())
+
+
+def _names(key: str) -> set[str]:
+    """'Showerhead(샤워헤드)' → {'showerhead(샤워헤드)', 'showerhead', '샤워헤드'}"""
+    out = {_norm(key)}
+    m = re.match(r"^(.*?)\s*\((.*)\)\s*$", key)
+    if m:
+        out |= {_norm(m.group(1)), _norm(m.group(2))}
+    return {n for n in out if n}
+
+
+def aliases(evidence: list[str]) -> dict[str, set[str]]:
+    """사업 원문의 '스핀척(Spin Chuck)' 같은 한글(영문) 짝. 용어 해설 표 키가 영어뿐일 때 한글 용어로 찾으려고"""
+    al: dict[str, set[str]] = {}
+    for ko, en in re.findall(r"([가-힣][가-힣A-Za-z]*)\s*\(([A-Za-z][A-Za-z0-9 \-/]*?)\)", " ".join(evidence)):
+        al.setdefault(_norm(ko), set()).add(en.strip())
+        al.setdefault(_norm(en), set()).add(ko.strip())
+    return al
+
+
+def _gloss_key(term: str, glossary: dict[str, str], al: dict[str, set[str]] | None = None) -> str | None:
+    """'샤워헤드' → 'Showerhead(샤워헤드)', '스핀척' → 'Spin Chuck'(원문 짝으로) 처럼 용어 해설 표의 키 찾기.
+    이름이 똑같은 키를 먼저, 없으면 부분 일치(2글자 이상)."""
+    cands = [term] + sorted((al or {}).get(_norm(term), set()))
+    for c in cands:
+        for k in glossary:
+            if _norm(c) in _names(k):
+                return k
+    for c in cands:
+        t = _norm(c)
+        for k in glossary:
+            if len(t) >= 2 and any(len(n) >= 2 and (t in n or n in t) for n in _names(k)):
+                return k
     return None
 
 
@@ -75,15 +103,33 @@ def display_term(key: str) -> str:
     return (m.group(1) if m else key).strip()
 
 
-def explain_line(term: str, glossary: dict[str, str]) -> str:
-    """캡션 ':' 풀이 줄: 신고서 용어 해설 문장을 그대로 붙인다 (숫자가 든 풀이는 숫자 대조 때문에 쓰지 않음)"""
-    key = _gloss_key(term, glossary)
-    if not key or re.search(r"\d", glossary[key]):
-        return ""
-    name, d = display_term(key), glossary[key].strip().rstrip(".")
-    ch = name[-1]
-    josa = "은" if "가" <= ch <= "힣" and (ord(ch) - 0xAC00) % 28 else "는"
-    return f": {name}{josa} {d}" + ("" if d.endswith(("임", "함", "음", "다")) else "임")
+def _josa(word: str, a: str, b: str) -> str:
+    ch = word[-1]
+    return a if "가" <= ch <= "힣" and (ord(ch) - 0xAC00) % 28 else b
+
+
+def metaphor(title: str) -> str:
+    """제목의 작은따옴표 안 비유: "반도체 장비 속 '샤워기' 만드는…" → '샤워기'"""
+    m = re.search(r"['‘]([^'’]+)['’]", title)
+    return m.group(1).strip() if m else ""
+
+
+def explain_line(term: str, glossary: dict[str, str], al: dict[str, set[str]] | None = None, title: str = "") -> str:
+    """캡션 ':' 풀이 줄: 신고서 용어 해설 문장을 그대로 붙인다 (숫자가 든 풀이는 숫자 대조 때문에 쓰지 않음).
+    해설 표에 없으면 비유가 무엇을 빗댄 건지만 밝힌다 (용어는 원문에 있다는 걸 check_hook이 확인함)."""
+    korean = term if re.search(r"[가-힣]", term) else next((a for a in sorted((al or {}).get(_norm(term), set()))
+                                                            if re.search(r"[가-힣]", a)), "")
+    key = _gloss_key(term, glossary, al)
+    if key and not re.search(r"\d", glossary[key]):
+        name = korean or display_term(key)
+        d = glossary[key].strip()
+        d = re.split(r"(?<=[.?!])\s+", d)[0].rstrip(".")  # 해설이 두 문장이면 첫 문장(정의)만
+        return f": {name}{_josa(name, '은', '는')} {d}" + ("" if d.endswith(("임", "함", "음", "다")) else "임")
+    m = metaphor(title)
+    if m and term:
+        name = korean or term
+        return f": '{m}'{_josa(m, '은', '는')} 이 회사 제품 {name}{_josa(name, '을', '를')} 빗댄 말임"
+    return ""
 
 
 def check_hook(h: Hook, facts: IpoFacts) -> list[str]:
@@ -95,6 +141,8 @@ def check_hook(h: Hook, facts: IpoFacts) -> list[str]:
     for name, text, limit in (("제목", h.title, CAPTION_LINE_MAX - 1.3), ("자막", h.sub, 12.0)):
         if re.search(r"\d", text):
             problems.append(f"{name}에 숫자: {text}")
+        if "—" in text or "–" in text:
+            problems.append(f"{name}에 긴 대시: {text}")
         if line_width(text) > limit:
             problems.append(f"{name}이 너무 김({line_width(text):.1f}): {text}")
     problems += check_forbidden([h.title, h.sub])
@@ -120,11 +168,14 @@ def make_hooks(facts: IpoFacts) -> list[Hook]:
         return []
     data = json.loads(text[text.find("{"): text.rfind("}") + 1])
     hooks = []
+    al = aliases(facts.business_evidence)
     for raw in data.get("hooks", [])[:3]:
         h = Hook(**{k: str(raw.get(k, "")).strip() for k in ("title", "term", "emoji", "sub", "video")})
         if not check_hook(h, facts):
-            h.explain = explain_line(h.term, facts.glossary)
+            h.explain = explain_line(h.term, facts.glossary, al, h.title)
             hooks.append(h)
+    # 캡션에서 신고서 용어 해설로 풀어 줄 수 있는 훅을 앞으로 (빗댄 말만 밝히는 훅은 뒤로). 같은 급이면 모델이 쓴 순서
+    hooks.sort(key=lambda h: 0 if h.explain and "빗댄 말임" not in h.explain else 1 if h.explain else 2)
     return hooks
 
 

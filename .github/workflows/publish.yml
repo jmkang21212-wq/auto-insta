@@ -1,7 +1,7 @@
 name: publish approved
 on:
   schedule:
-    - cron: "7,37 23,0-13 * * *"   # 08:07~22:37 KST 30분마다 텔레그램 버튼 응답 확인 (정각·30분은 GitHub 부하로 밀려서 비껴 둠)
+    - cron: "7,37 23,0-13 * * *"   # 08:07~22:37 KST 30분마다 텔레그램 버튼 응답 확인. 이 저장소에선 예약이 안 돌아서 Claude 예약 작업이 평일 18:43에 한 번 대신 실행
   workflow_dispatch:
     inputs:
       cmd:

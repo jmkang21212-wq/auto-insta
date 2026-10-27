@@ -35,6 +35,11 @@ def used_ids() -> set[str]:
         return set()
 
 
+# 이번 실행 안에서 이미 고른 영상 (같은 날 여러 회사가 같은 영상을 고르지 않게).
+# 파일(state/used_media.json)에는 게시 대기열에 올릴 때(publish stage) 남긴다: 검증에서 떨어진 릴스의 영상까지 막지 않으려고
+_RUN_USED: set[str] = set()
+
+
 def mark_used(media_id: str) -> None:
     ids = sorted(used_ids() | {media_id})
     USED.parent.mkdir(parents=True, exist_ok=True)
@@ -197,14 +202,14 @@ def thing_of(title: str) -> str:
 
 
 def make_reel(title: str, second: str, sub: str, query: str, out: Path) -> dict:
-    """훅 릴스 한 편. 쓴 영상은 used_media에 남긴다. 돌려주는 meta는 캡션 '📷 자료 화면' 줄과 로그용"""
-    found = find_video(query, thing=thing_of(title))
+    """훅 릴스 한 편. 돌려주는 meta(영상 id·출처)는 캡션 '📷 자료 화면' 줄, 로그, 게시 대기열의 사용 기록용"""
+    found = find_video(query, skip=used_ids() | _RUN_USED, thing=thing_of(title))
     if not found:
         raise RuntimeError(f"'{query}' 영상을 못 찾음")
     video, meta = found
     with tempfile.TemporaryDirectory() as tmp:
         compose(video, overlay_png(title, second, sub, Path(tmp) / "overlay.png"), out)
-    mark_used(meta["id"])
+    _RUN_USED.add(meta["id"])
     return meta
 
 

@@ -149,6 +149,20 @@ def test_deposit_and_brokers():
     assert cards.deposit_text(IpoFacts(**{**DONGWON, "deposit_rate_pct": None})) == ""  # 증거금률을 못 읽으면 줄을 안 씀
 
 
+def test_two_sentence_risk_is_split_one_per_line():
+    """2026-10-27 Actions 실행에서 걸린 경우: 위험 풀이가 두 문장이면 한 줄에 두 문장이 붙어 검증 탈락했었음"""
+    risks = [{"category": "growth", "title": "성장성 및 수익성 악화 위험", "quote": "원문"}]
+    f = IpoFacts(**DONGWON, risks=risks)
+    s = Summary(business_lines=["a", "b"], evidence=["a", "b"], risk_lines=[[
+        "2023년 메모리 업황 둔화로 매출이 645억원에서 505억원으로 줄었음. 2024년엔 알루미늄값 상승 등으로 약 56억원 순손실이 났음."]])
+    cap = cards.caption(f, "20261023000331", s)
+    assert check_caption_layout(cap) == [], check_caption_layout(cap)
+    warn = cap.split("⚠️")[1].split("\n\n")[0]
+    assert warn.count("\n: ") == 2 and "." not in warn.replace("·", ""), warn  # 문장마다 ':'로 새로 시작, 마침표 없음
+    assert cards.wrap("- 26.5만원 기준") == ["- 26.5만원 기준"]  # 소수점은 문장 끝이 아님
+    assert cards.sentences("왜 그럼? 이래서 그럼.") == ["왜 그럼?", "이래서 그럼"]
+
+
 def test_investment_doc_name():
     assert cards.doc_kind("[기재정정]투자설명서") == "투자설명서"
     assert cards.doc_kind("[발행조건확정]증권신고서(지분증권)") == "증권신고서"

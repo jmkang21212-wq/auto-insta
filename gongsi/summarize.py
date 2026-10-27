@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import json
+import re
 
 from gongsi.config import settings
 from gongsi.models import IpoFacts, Summary
@@ -32,7 +33,7 @@ RISK_PROMPT = """아래는 한 회사가 증권신고서 '투자위험요소'에
 
 규칙:
 1. 항목마다 한 문단, 공백 포함 60~80자. 문장은 2개까지. 줄바꿈은 넣지 마세요(카드가 알아서 접습니다).
-2. 원문에 없는 숫자, 회사명, 평가 표현(심각, 안전, 괜찮, 호재, 악재 등)은 쓰지 마세요. 원문이 "~할 수 있습니다"면 "~할 수 있음"으로, 가능성은 가능성으로 두세요.
+2. 원문에 없는 숫자, 회사명, 평가 표현(심각, 안전, 괜찮, 호재, 악재 등)은 쓰지 마세요. 원문이 "~할 수 있습니다"면 "~할 수 있음"으로, 가능성은 가능성으로 두세요. '당사'는 '회사'로 바꾸세요(쓰는 사람은 회사가 아님).
 3. 왜 위험인지(원인 → 영향)가 보이게 쓰세요. 원문에 구체적 상황(어떤 기관, 어떤 조건)이 있으면 한 가지는 살리세요.
 4. JSON만 출력: {"risks": ["문단", "문단"]}  (입력 순서대로)
 
@@ -59,6 +60,7 @@ def summarize_risks(facts: IpoFacts) -> list[list[str]]:
             return []
         data = json.loads(text[text.find("{"): text.rfind("}") + 1])
         out = [[str(x)] if isinstance(x, str) else [str(y) for y in x][:2] for x in data.get("risks", [])][: len(risks)]
+        out = [[re.sub(r"당사(?!자)", "회사", l) for l in pair] for pair in out]  # 프롬프트로 막아도 남는 '당사'는 코드로
         if len(out) != len(risks):
             return []
         bad = check_forbidden([l for pair in out for l in pair])

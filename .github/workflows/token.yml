@@ -1,7 +1,7 @@
 name: refresh instagram token
 on:
   schedule:
-    - cron: "13 1 * * 1"   # 매주 월요일 10:13 KST. 장기 토큰은 60일짜리라 매주 연장하면 안전
+    - cron: "13 1 * * 1"   # 매주 월요일 10:13 KST. 장기 토큰은 60일짜리라 매주 연장하면 안전 (이 저장소는 깃허브 예약이 안 돌아서 Claude 예약 작업이 월요일 아침에 대신 실행)
   workflow_dispatch:
 
 jobs:
@@ -11,6 +11,7 @@ jobs:
       IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      HAS_PAT: ${{ secrets.GH_PAT != '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -18,9 +19,16 @@ jobs:
       - run: pip install requests pillow python-dotenv pydantic jinja2
       - id: t
         run: python -m gongsi.publish refresh-token
-      - name: Secret 갱신 (GITHUB_TOKEN은 secret을 못 써서 PAT(GH_PAT, repo 권한) 필요)
-        if: steps.t.outputs.token != ''
+      # 연장 결과 토큰 문자열이 바뀐 경우에만 Secret을 고친다. GITHUB_TOKEN은 secret을 못 써서 PAT(GH_PAT) 필요
+      - name: Secret 갱신
+        if: steps.t.outputs.changed == 'true' && env.HAS_PAT == 'true'
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
           NEW_TOKEN: ${{ steps.t.outputs.token }}
         run: gh secret set IG_ACCESS_TOKEN --body "$NEW_TOKEN" --repo "${{ github.repository }}"
+      - name: 새 토큰을 저장 못 하면 텔레그램으로 알림
+        if: steps.t.outputs.changed == 'true' && env.HAS_PAT != 'true'
+        run: |
+          curl -sS -o /dev/null -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -d chat_id="${TELEGRAM_CHAT_ID}" \
+            --data-urlencode text="⚠️ 인스타 토큰을 연장했더니 새 토큰이 왔는데, GH_PAT Secret이 없어 저장을 못 했어요. 지금 토큰은 원래 기한까지만 써요. 저장소 Secrets에 GH_PAT(이 저장소 Secrets 읽기·쓰기 권한 토큰)을 넣어 주세요."

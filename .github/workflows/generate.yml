@@ -1,7 +1,7 @@
 name: generate cards
 on:
   schedule:
-    - cron: "23 22 * * 0-4"   # 월~금 07:23 KST (UTC 22:23 전날). 정각·30분 피함
+    - cron: "23 22 * * 0-4"   # 월~금 07:23 KST (UTC 22:23 전날). 이 저장소에선 예약이 안 돌아서 Claude 예약 작업이 07:43에 대신 실행 (README 스케줄)
   workflow_dispatch:
     inputs:
       days:

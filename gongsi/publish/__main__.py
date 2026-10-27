@@ -89,6 +89,7 @@ def cmd_stage(args) -> None:
         post.meta["phase"] = r.get("phase")
         post.meta["subscription_start"] = r.get("subscription_start")
         post.save()
+        _mark_video(post)
         log("stage", corp=r["corp"], rcept_no=r["rcept_no"], dir=str(post.dir.relative_to(store.ROOT)), n=post.meta["n"])
         n += 1
     log("stage", count=n, run=run)
@@ -155,18 +156,30 @@ def cmd_poll(args) -> None:
             _publish(post, "retry")
 
 
+def _mark_video(post: store.Post) -> None:
+    """게시 대기열에 오른 릴스의 영상은 다음 릴스에서 다시 안 쓰게 state/used_media.json에 남긴다"""
+    f = post.dir / "bundle.json"
+    if post.meta.get("format") != "reel" or not f.exists():
+        return
+    vid = (json.loads(f.read_text(encoding="utf-8")).get("video") or {}).get("id")
+    if vid:
+        from gongsi.reel import mark_used
+        mark_used(vid)
+
+
 def _rerender(post: store.Post, idx: int) -> None:
     """bundle.json의 idx번 훅으로 릴스와 캡션을 다시 만든다. 새 파일 이름(reel_N.mp4)으로 저장해 raw 주소 캐시를 피한다."""
     from gongsi import cards
     from gongsi.hook import Hook
     from gongsi.models import IpoFacts, Summary
-    from gongsi.reel import make_reel
+    from gongsi.reel import make_reel, mark_used
 
     path = post.dir / "bundle.json"
     b = json.loads(path.read_text(encoding="utf-8"))
     hook = Hook(**b["hooks"][idx])
     name = f"reel_{idx + 1}.mp4"
     video = make_reel(hook.title, f"({b['line2']})" if b.get("line2") else "", hook.sub, hook.video, post.dir / name)
+    mark_used(video["id"])
     facts, summary = IpoFacts(**b["facts"]), Summary(**b["summary"])
     cap = cards.caption(facts, post.rcept_no, summary, b.get("doc", "증권신고서"), hook, credit="📷 자료 화면: Pixabay")
     (post.dir / "caption.txt").write_text(cap, encoding="utf-8")
@@ -241,13 +254,17 @@ def cmd_check(args) -> None:
 def cmd_refresh(args) -> None:
     data = instagram.refresh_token()
     days = int(data.get("expires_in", 0)) // 86400
-    log("refresh-token", expires_in_days=days)
+    # 연장하면 같은 토큰 문자열의 기한만 늘어나는지, 새 문자열이 오는지 문서에 없음(확인 필요) → 바뀐 경우에만 Secret을 고친다
+    changed = data["access_token"] != os.getenv("IG_ACCESS_TOKEN")
+    log("refresh-token", expires_in_days=days, changed=changed)
     out = Path(os.getenv("GITHUB_OUTPUT", "")) if os.getenv("GITHUB_OUTPUT") else None
     if out:
         print(f"::add-mask::{data['access_token']}")  # 로그에 찍히지 않게
         with out.open("a", encoding="utf-8") as f:
-            f.write(f"token={data['access_token']}\n")
-    else:
+            f.write(f"changed={'true' if changed else 'false'}\ndays={days}\n")
+            if changed:
+                f.write(f"token={data['access_token']}\n")
+    elif changed:
         print(data["access_token"])
 
 

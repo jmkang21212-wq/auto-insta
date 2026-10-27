@@ -309,13 +309,32 @@ def nb(s: str) -> str:
     return s.replace(" ", NB)
 
 
+_SIGNS = ("- ", ": ", "→ ")
+
+
+def sentences(text: str) -> list[str]:
+    """문장 끝(. ? !) 뒤 공백에서 나눈다. 음슴체 캡션은 마침표를 안 찍으므로 끝의 '.'은 뗀다 (? !는 둔다).
+    '26.5만'처럼 뒤에 공백이 없는 점은 문장 끝이 아니다."""
+    parts = [p.strip() for p in re.split(r"(?<=[.?!])\s+", text.strip()) if p.strip()]
+    return [p[:-1].rstrip() if p.endswith(".") and not p.endswith("..") else p for p in parts]
+
+
 def wrap(text: str) -> list[str]:
+    """한 줄에 한 문장 + 휴대폰 한 줄 폭. 문장이 둘이면(위험 풀이 등) 문장마다 같은 기호('-' ':' '→')로 새로 시작한다."""
+    text = re.sub(r"[ \t\n]+", " ", text).strip()  # 원문 인용의 겹친 공백 정리 (NB는 남긴다: str.split()은 NB도 자름)
+    sign = next((s for s in _SIGNS if text.startswith(s)), "")
+    out: list[str] = []
+    for s in sentences(text[len(sign):]):
+        out += _wrap_one(sign + s)
+    return out
+
+
+def _wrap_one(text: str) -> list[str]:
     """휴대폰 한 줄 폭에 맞게 어절 단위로 끊는다. ekke 캡션처럼 구 단위로 일부러 끊은 모양이 되게,
     가장 적은 줄 수 안에서 조사·쉼표 뒤에서 끊고 줄 폭이 고른 자리를 고른다. 날짜 같은 묶음(NB)은 안 끊는다."""
     from itertools import combinations
 
     out = lambda lines: [l.replace(NB, " ").strip() for l in lines]  # noqa: E731
-    text = re.sub(r"[ \t\n]+", " ", text).strip()  # 원문 인용의 겹친 공백 정리 (NB는 남긴다: str.split()은 NB도 자름)
     if line_width(text) <= CAPTION_LINE_MAX:
         return out([text])
     words = text.split(" ")

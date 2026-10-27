@@ -32,6 +32,18 @@ def log(stage: str, **kw):
     print(json.dumps({"stage": stage, **kw}, ensure_ascii=False), flush=True)
 
 
+def _tell(text: str) -> None:
+    """Actions 실행에서 텔레그램이 설정돼 있으면 알림 (검증에서 걸려 그날 게시물이 안 나간 이유를 사용자가 알 수 있게).
+    로컬 시험 실행은 알리지 않는다. 실패해도 파이프라인은 계속"""
+    if os.getenv("GITHUB_ACTIONS") != "true" or not (os.getenv("TELEGRAM_BOT_TOKEN") and os.getenv("TELEGRAM_CHAT_ID")):
+        return
+    try:
+        from gongsi.publish.telegram import notify
+        notify(text)
+    except Exception as e:  # noqa: BLE001
+        log("telegram", ok=False, error=str(e)[:200])
+
+
 def run(adapter: Adapter, date_from: str, date_to: str, only_rcept: str | None, today: date) -> int:
     db = DB(settings.db_path)
     run_id = db.start_run(adapter.account, "ipo")
@@ -147,6 +159,7 @@ def run(adapter: Adapter, date_from: str, date_to: str, only_rcept: str | None, 
                         verified, "; ".join(problems) if problems else None)
             log("verify", corp=d.corp_name, ok=verified, problems=problems, derived=derived)
             if not verified:
+                _tell(f"⚠️ {d.corp_name} 검증에서 걸려서 이번엔 안 만들었어요\n" + "\n".join(f"- {p}" for p in problems[:5]))
                 continue
 
             # 6. 카드 생성
