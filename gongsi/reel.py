@@ -49,21 +49,26 @@ def _keywords(query: str) -> list[str]:
     return [w for w in query.lower().replace("-", " ").split() if len(w) >= 3 and w not in GENERIC]
 
 
-PEOPLE = {"woman", "man", "girl", "boy", "people", "person", "lady", "portrait", "face", "model", "seductive", "glamour",
-          "couple", "child", "kid", "baby"}
+PEOPLE = {"woman", "man", "girl", "boy", "people", "person", "lady", "portrait", "face", "model", "couple", "child", "kid", "baby"}
+# 금융 계정에 안 맞는 장면. '샤워기'로 찾으면 샤워하는 여성 영상(seductive·glamour 태그)이 섞여 나와서 넣었다
+UNFIT = {"seductive", "glamour", "sexy", "sensual", "erotic", "nude", "naked", "lingerie", "bikini", "underwear", "swimsuit"}
 
 
 def _score(tags: str, words: list[str]) -> int:
     """태그가 훅의 물건과 얼마나 맞는지: 3 '두 단어 그대로'(shower head), 2 '첫 명사 그대로'(shower),
-    1 '첫 명사가 들어간 다른 말'(rain shower), 0 없음. 사람이 나오는 영상은 -1 (초상권·엉뚱한 장면 방지)"""
+    1 '첫 명사가 들어간 다른 말'(rain shower), 0 없음, -1 금융 계정에 안 맞는 장면"""
     toks = [t.strip().lower() for t in tags.split(",")]
-    if any(w in PEOPLE for t in toks for w in t.split()):
+    if any(w in UNFIT for t in toks for w in t.split()):
         return -1
     if len(words) > 1 and " ".join(words[:2]) in toks:
         return 3
     if words[0] in toks:
         return 2
     return 1 if any(words[0] in t for t in toks) else 0
+
+
+def _has_people(tags: str) -> bool:
+    return any(w in PEOPLE for t in tags.lower().split(",") for w in t.split())
 
 
 def find_video(query: str, skip: set[str] | None = None) -> tuple[Path, dict] | None:
@@ -81,7 +86,8 @@ def find_video(query: str, skip: set[str] | None = None) -> tuple[Path, dict] | 
             v = hit["videos"].get("medium") or hit["videos"].get("small")
             if f"pixabay:{hit['id']}" in skip or not v or not v.get("url") or min(v["width"], v["height"]) < 540 or hit.get("duration", 0) < 4:
                 continue
-            rank = (_score(hit.get("tags", ""), words), min(v["width"], v["height"]))
+            # 사람이 나와도 쓴다. 다만 물건이 주인공인 훅이면 같은 점수에서 사람 없는 영상을 먼저 고른다
+            rank = (_score(hit.get("tags", ""), words), not _has_people(hit.get("tags", "")), min(v["width"], v["height"]))
             if rank[0] >= 2 and (best is None or rank > best[0]):
                 best = (rank, hit, v, q)
     if not best:
@@ -92,7 +98,7 @@ def find_video(query: str, skip: set[str] | None = None) -> tuple[Path, dict] | 
     if not path.exists():
         path.write_bytes(requests.get(v["url"], timeout=120).content)
     meta = {"id": f"pixabay:{hit['id']}", "query": q, "user": hit.get("user"), "page": hit.get("pageURL"),
-            "tags": hit.get("tags"), "license": "Pixabay Content License"}
+            "tags": hit.get("tags"), "people": _has_people(hit.get("tags", "")), "license": "Pixabay Content License"}
     path.with_suffix(".json").write_text(json.dumps(meta, ensure_ascii=False), encoding="utf-8")
     return path, meta
 

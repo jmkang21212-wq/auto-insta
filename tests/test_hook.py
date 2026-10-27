@@ -9,7 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from gongsi.adapters.dart_doc import parse  # noqa: E402
 from gongsi.hook import Hook, check_hook, display_term, explain_line, line2  # noqa: E402
 from gongsi.models import IpoFacts  # noqa: E402
-from gongsi.reel import _keywords, _score, split_title  # noqa: E402
+from gongsi.reel import _has_people, _keywords, _score, split_title  # noqa: E402
 
 GLOSSARY_DOC = """II. 사업의 내용
 사업에 대한 이해를 돕기 위해 당사가 영위하는 사업 분야 및 기술, 제품에 대한 전문용어 해설을 아래 표와 같이 기재합니다.
@@ -67,7 +67,8 @@ def test_video_tag_scoring():
     assert _score("shower head, watercourse, water, shower", words) == 3
     assert _score("water, flow, rush, waterfall, showers", words) == 1  # 'showers'는 폭포 영상이라 안 씀(2 미만)
     assert _score("ocean, sea, wave, water", words) == 0
-    assert _score("woman, shower, bathing, soap", words) == -1  # 사람 나오는 영상 제외
+    assert _score("woman, shower, bathing, soap", words) == 2 and _has_people("woman, shower, bathing, soap")  # 사람은 허용
+    assert _score("woman, shower, seductive, glamour", words) == -1  # 선정적인 장면만 제외
 
 
 def test_title_split_two_balanced_lines():
