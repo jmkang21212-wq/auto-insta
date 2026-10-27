@@ -14,5 +14,10 @@
   "message_id": 33,
   "chat_id": 8647980564,
   "format": "reel"
+ },
+ "telegram": {
+  "message_id": 35,
+  "chat_id": 8647980564,
+  "format": "reel"
  }
 }
