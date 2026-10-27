@@ -131,3 +131,30 @@ def verify(card_texts: list[str], summary: Summary | None, facts: IpoFacts) -> l
     if summary:
         problems += check_summary(summary, facts) + check_forbidden(summary.business_lines)
     return problems
+
+
+def sane_schedule(facts):
+    """일정끼리 앞뒤가 안 맞는 날짜는 뺀다 (원문 다른 곳의 날짜를 잘못 집은 경우).
+    2026-10-28 에스에프씨: 청약 2026-11-18인데 상장 예정일을 2023-06-26으로 읽어 캡션에 '6월 26일(월)'이 나갈 뻔했음.
+    상장일은 청약 끝난 뒤 60일 안, 환불일은 청약 끝난 뒤 10일 안, 수요예측·확정가 공고는 청약 시작 전. (고친 사본, 뺀 항목) 반환"""
+    from datetime import date, timedelta
+
+    def d(s):
+        try:
+            return date.fromisoformat(s) if s else None
+        except ValueError:
+            return None
+
+    start, end = d(facts.subscription_start), d(facts.subscription_end) or d(facts.subscription_start)
+    drop = {}
+    if end:
+        for k, lo, hi in (("listing_date", 0, 60), ("refund_date", 0, 10)):
+            v = d(getattr(facts, k))
+            if v and not (end + timedelta(days=lo) <= v <= end + timedelta(days=hi)):
+                drop[k] = None
+    if start:
+        for k in ("forecast_start", "forecast_end", "final_price_date"):
+            v = d(getattr(facts, k))
+            if v and not (start - timedelta(days=45) <= v <= start):
+                drop[k] = None
+    return (facts.model_copy(update=drop) if drop else facts), sorted(drop)

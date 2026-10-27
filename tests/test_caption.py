@@ -182,6 +182,17 @@ def test_final_terms_filings_and_post_only_default():
     assert settings.post_only  # 기본은 수요예측 결과 뒤에만 게시 (2026-10-28)
 
 
+def test_schedule_dates_that_contradict_subscription_are_dropped():
+    """에스에프씨(2026-10-28): 청약 11/18인데 원문 다른 곳의 2023-06-26을 상장 예정일로 읽어 '6월 26일(월)'이 나갈 뻔했음"""
+    from gongsi.verify import sane_schedule
+    f = IpoFacts(**{**DONGWON, "listing_date": "2023-06-26", "refund_date": "2026-11-05"})
+    clean, dropped = sane_schedule(f)
+    assert dropped == ["listing_date"] and clean.listing_date is None and clean.refund_date == "2026-11-05"
+    assert "상장 예정일" not in cards.caption(clean, "20261023000331")
+    ok, none = sane_schedule(IpoFacts(**{**DONGWON, "listing_date": "2026-11-12"}))
+    assert none == [] and ok.listing_date == "2026-11-12"
+
+
 def test_investment_doc_name():
     assert cards.doc_kind("[기재정정]투자설명서") == "투자설명서"
     assert cards.doc_kind("[발행조건확정]증권신고서(지분증권)") == "증권신고서"

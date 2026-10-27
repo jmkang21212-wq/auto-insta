@@ -85,28 +85,82 @@ def _has_people(tags: str) -> bool:
     return any(w in PEOPLE for t in tags.lower().split(",") for w in t.split())
 
 
-def video_ok(thing: str, query: str, thumb: bytes) -> bool | None:
-    """Claude 비전으로 영상 첫 장면 확인: 훅이 빗댄 물건이 화면 주인공인가. 키가 없으면 None(확인 생략).
-    태그만 보면 'electric heating coil'에 일렉 기타 영상이 걸리는 식의 오답이 남아서 넣었다."""
-    if not settings.anthropic_api_key:
+MOTION_MIN = 2.5  # 이보다 낮으면 '정적인 영상' (2026-10-28 잰 값: 샤워 물줄기 0.8, 비행기 날개 0.5, 파도 5.5, 기타 연주 8.5, 폭포 26.6)
+
+
+def motion_score(path: Path, seconds: float = 5.0, w: int = 64, h: int = 36) -> float:
+    """영상이 얼마나 움직이는지: 앞 몇 초를 아주 작은 흑백으로 줄여 연속 프레임 밝기 차이의 평균(0~255).
+    사용자 피드백(2026-10-28 '영상이 너무 정적'): 같은 물건이면 움직임이 큰 영상을 고르려고 잰다"""
+    raw = subprocess.run(["ffmpeg", "-v", "error", "-t", str(seconds), "-i", str(path), "-vf", f"scale={w}:{h},fps=6,format=gray",
+                          "-f", "rawvideo", "-"], capture_output=True, check=True).stdout
+    n = len(raw) // (w * h)
+    fr = [raw[i * w * h:(i + 1) * w * h] for i in range(n)]
+    d = [sum(abs(a - b) for a, b in zip(x, y)) / (w * h) for x, y in zip(fr, fr[1:])]
+    return round(sum(d) / len(d), 2) if d else 0.0
+
+
+def lead_in(path: Path, upto: float = 3.0, w: int = 64, h: int = 36) -> float:
+    """영상 앞부분이 비어 있으면(잉크가 들어오기 전 회색 화면 등) 건너뛸 초. 프레임 밝기 표준편차가
+    앞 몇 초 중 가장 큰 값의 40%를 처음 넘는 지점. 첫 장면·표지가 빈 화면이 되지 않게 (2026-10-28)"""
+    fps = 6
+    raw = subprocess.run(["ffmpeg", "-v", "error", "-t", str(upto + 1), "-i", str(path), "-vf", f"scale={w}:{h},fps={fps},format=gray",
+                          "-f", "rawvideo", "-"], capture_output=True, check=True).stdout
+    n = len(raw) // (w * h)
+    stds = []
+    for i in range(n):
+        f = raw[i * w * h:(i + 1) * w * h]
+        m = sum(f) / len(f)
+        stds.append((sum((x - m) ** 2 for x in f) / len(f)) ** 0.5)
+    if not stds or max(stds) < 1:
+        return 0.0
+    first = next(i for i, v in enumerate(stds) if v >= 0.4 * max(stds))
+    return round(min(first / fps, upto), 2)
+
+
+def frames_jpeg(path: Path, at: tuple[float, ...] = (0.5, 2.0, 3.5)) -> list[bytes]:
+    """비전 확인용 장면 몇 장 (JPEG, 가로 480)"""
+    out = []
+    for t in at:
+        r = subprocess.run(["ffmpeg", "-v", "error", "-ss", str(t), "-i", str(path), "-frames:v", "1", "-vf", "scale=480:-2",
+                            "-f", "image2", "-c:v", "mjpeg", "-"], capture_output=True)
+        if r.returncode == 0 and r.stdout:
+            out.append(r.stdout)
+    return out
+
+
+def video_ok(thing: str, query: str, shots: list[bytes]) -> bool | None:
+    """Claude 비전으로 장면 몇 장 확인: 훅의 비유(물건이나 장면)가 주인공이고, 눈에 띄게 움직이거나 재미있는 장면인가.
+    키가 없으면 None(확인 생략). 태그만 보면 'electric heating coil'에 일렉 기타가 걸리는 식의 오답이 남아서 넣었다."""
+    if not settings.anthropic_api_key or not shots:
         return None
     import base64
 
     import anthropic
     from gongsi.summarize import MODEL
 
-    msg = anthropic.Anthropic(api_key=settings.anthropic_api_key).messages.create(model=MODEL, max_tokens=1500, messages=[{
-        "role": "user", "content": [
-            {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": base64.b64encode(thumb).decode()}},
-            {"type": "text", "text": f"이 영상 첫 장면에 '{thing}'(검색어: {query}) 또는 그것과 아주 비슷한 물건이 화면 주인공으로 크게 보이나요?\n"
-                                     "다음이 있으면 '아니오': 다른 물건이 주인공, 읽을 수 있는 브랜드 로고·제품명 글자, 선정적인 장면, 저화질.\n"
-                                     "'예' 또는 '아니오'만 답하세요."}]}])
+    content = [{"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": base64.b64encode(b).decode()}}
+               for b in shots]
+    content.append({"type": "text", "text": (
+        f"같은 영상의 앞부분 장면 {len(shots)}장입니다. 인스타 릴스 배경으로 쓰려고 합니다.\n"
+        f"'{thing}' 또는 검색어 장면('{query}')이 화면 주인공으로 분명히 보이나요?\n"
+        "다음 중 하나라도 있으면 '아니오': 다른 것이 주인공, 읽을 수 있는 브랜드 로고·제품명 글자, 선정적인 장면, 저화질, "
+        "장면이 거의 안 변하는 정지 화면 같은 영상.\n'예' 또는 '아니오'만 답하세요.")})
+    msg = anthropic.Anthropic(api_key=settings.anthropic_api_key).messages.create(
+        model=MODEL, max_tokens=1500, messages=[{"role": "user", "content": content}])
     return "".join(b.text for b in msg.content if getattr(b, "type", "") == "text").strip().startswith("예")
 
 
+def _get(url: str, path: Path) -> Path:
+    if not path.exists():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(requests.get(url, timeout=120).content)
+    return path
+
+
 def find_video(query: str, skip: set[str] | None = None, thing: str = "") -> tuple[Path, dict] | None:
-    """Pixabay 영상 검색 → 아직 안 쓴 영상 중 태그가 훅의 물건과 맞는 순서로, 첫 장면을 비전으로 확인해 통과한 것을 받는다.
-    검색어를 넓혀 가며(전체 → 핵심 명사들 → 첫 명사) 모으고, 짧은 영상은 반복 재생한다."""
+    """Pixabay 영상 검색 → 아직 안 쓴 영상 중 태그가 훅의 비유와 맞는 것 10개의 작은 판을 받아 움직임을 재고,
+    (태그 점수, 움직임) 순으로 장면 3장을 비전으로 확인해 통과한 것을 받는다. 움직임이 MOTION_MIN보다 큰 영상을 먼저,
+    없으면 그중 가장 많이 움직이는 것. 검색어를 넓혀 가며(전체 → 핵심 명사들 → 첫 명사) 모으고, 짧은 영상은 반복 재생한다."""
     key = os.getenv("PIXABAY_API_KEY", "")
     words = _keywords(query)
     if not key or not words:
@@ -120,21 +174,28 @@ def find_video(query: str, skip: set[str] | None = None, thing: str = "") -> tup
             mid = f"pixabay:{hit['id']}"
             if mid in skip or mid in cands or not v or not v.get("url") or min(v["width"], v["height"]) < 540 or hit.get("duration", 0) < 4:
                 continue
-            # 사람이 나와도 쓴다. 다만 같은 점수면 사람 없는 영상을 먼저 고른다
-            rank = (_score(hit.get("tags", ""), words), not _has_people(hit.get("tags", "")), min(v["width"], v["height"]))
-            if rank[0] >= 1:
-                cands[mid] = (rank, hit, v, q)
-    for rank, hit, v, q in sorted(cands.values(), key=lambda c: c[0], reverse=True)[:6]:
-        thumb_url = (hit["videos"].get("small") or v).get("thumbnail")
-        verdict = video_ok(thing or query, query, requests.get(thumb_url, timeout=30).content) if thumb_url else None
+            score = _score(hit.get("tags", ""), words)
+            if score >= 1:
+                cands[mid] = (score, hit, v, q)
+    top = sorted(cands.values(), key=lambda c: c[0], reverse=True)[:10]
+    measured = []
+    for score, hit, v, q in top:
+        small = hit["videos"].get("tiny") or hit["videos"].get("small") or v
+        try:
+            preview = _get(small["url"], CACHE / "preview" / f"pixabay_{hit['id']}.mp4")
+            motion = motion_score(preview)
+        except Exception:  # noqa: BLE001
+            continue
+        measured.append((score, motion, hit, v, q, preview))
+    lively = [m for m in measured if m[1] >= MOTION_MIN]
+    pool = sorted(lively or measured, key=lambda m: (m[0], min(m[1], 20.0)), reverse=True)
+    for score, motion, hit, v, q, preview in pool[:5]:
+        verdict = video_ok(thing or query, query, frames_jpeg(preview))
         if verdict is False:
             continue
-        CACHE.mkdir(parents=True, exist_ok=True)
-        path = CACHE / f"pixabay_{hit['id']}.mp4"
-        if not path.exists():
-            path.write_bytes(requests.get(v["url"], timeout=120).content)
+        path = _get(v["url"], CACHE / f"pixabay_{hit['id']}.mp4")
         meta = {"id": f"pixabay:{hit['id']}", "query": q, "user": hit.get("user"), "page": hit.get("pageURL"),
-                "tags": hit.get("tags"), "people": _has_people(hit.get("tags", "")), "vision": verdict,
+                "tags": hit.get("tags"), "people": _has_people(hit.get("tags", "")), "vision": verdict, "motion": motion,
                 "license": "Pixabay Content License"}
         path.with_suffix(".json").write_text(json.dumps(meta, ensure_ascii=False), encoding="utf-8")
         return path, meta
@@ -207,12 +268,12 @@ def overlay_png(title: str, second: str, sub: str, out: Path) -> Path:
     return out
 
 
-def compose(video: Path, overlay: Path, out: Path, seconds: int = SECONDS) -> Path:
+def compose(video: Path, overlay: Path, out: Path, seconds: int = SECONDS, start: float = 0.0) -> Path:
     """배경색 → 가운데 영상(꽉 채워 자름) → 글자 판. 소리는 빈 트랙 (음악은 게시 때 API로)"""
     vf = (f"color=c=0x0F1115:s={W}x{H}:r=30:d={seconds}[bg];"
           f"[0:v]trim=0:{seconds},setpts=PTS-STARTPTS,scale={W}:{VIDEO_H}:force_original_aspect_ratio=increase,"
           f"crop={W}:{VIDEO_H},fps=30[v];[bg][v]overlay=0:{VIDEO_TOP}[b1];[b1][1:v]overlay=0:0,format=yuv420p[out]")
-    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-stream_loop", "-1", "-i", str(video), "-i", str(overlay),
+    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-stream_loop", "-1", "-ss", f"{start:.2f}", "-i", str(video), "-i", str(overlay),
                     "-f", "lavfi", "-t", str(seconds), "-i", "anullsrc=r=48000:cl=stereo",
                     "-filter_complex", vf, "-map", "[out]", "-map", "2:a", "-t", str(seconds),
                     "-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-c:a", "aac", "-b:a", "96k",
@@ -232,8 +293,9 @@ def make_reel(title: str, second: str, sub: str, query: str, out: Path) -> dict:
     if not found:
         raise RuntimeError(f"'{query}' 영상을 못 찾음")
     video, meta = found
+    meta["start"] = lead_in(video)
     with tempfile.TemporaryDirectory() as tmp:
-        compose(video, overlay_png(title, second, sub, Path(tmp) / "overlay.png"), out)
+        compose(video, overlay_png(title, second, sub, Path(tmp) / "overlay.png"), out, start=meta["start"])
     _RUN_USED.add(meta["id"])
     return meta
 

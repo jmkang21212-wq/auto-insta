@@ -178,7 +178,15 @@ def _rerender(post: store.Post, idx: int) -> None:
     b = json.loads(path.read_text(encoding="utf-8"))
     hook = Hook(**b["hooks"][idx])
     name = f"reel_{idx + 1}.mp4"
-    video = make_reel(hook.title, f"({b['line2']})" if b.get("line2") else "", hook.sub, hook.video, post.dir / name)
+    video, err = None, None
+    for q in hook.queries():  # 첫 검색어로 영상이 없으면 더 흔한 장면 검색어로
+        try:
+            video = make_reel(hook.title, f"({b['line2']})" if b.get("line2") else "", hook.sub, q, post.dir / name)
+            break
+        except Exception as e:  # noqa: BLE001
+            err = e
+    if video is None:
+        raise err or RuntimeError("영상을 못 찾음")
     mark_used(video["id"])
     facts, summary = IpoFacts(**b["facts"]), Summary(**b["summary"])
     cap = cards.caption(facts, post.rcept_no, summary, b.get("doc", "증권신고서"), hook, credit="📷 자료 화면: Pixabay")

@@ -76,6 +76,14 @@ def test_explain_from_business_text_when_no_glossary():
     assert explain_line("자이로스코프", {}, None, "", ["자이로스코프는 1초에 100번 회전을 재는 센서입니다."]) == ""  # 숫자 든 정의는 안 씀
 
 
+def test_fixed_term_explanation_when_filing_has_none():
+    """신고서에 정의가 없으면 fixtures/terms.json의 고정 풀이 (에스에프씨 '발광재료', 2026-10-28)"""
+    line = explain_line("발광재료", {}, None, "'화면 물감' 만드는 회사가 상장함", ["당사는 OLED 소재를 생산합니다."])
+    assert line == ": '화면 물감'은 발광재료를 빗댄 말임. 발광재료는 전기를 받으면 스스로 빛을 내는 재료임", line
+    h = Hook(title="t", term="x", emoji="e", sub="s", video="kid finger painting", alt_videos=["colorful paint splash", "kid finger painting"])
+    assert h.queries() == ["kid finger painting", "colorful paint splash"]
+
+
 def test_bad_hooks_rejected():
     no_source = Hook(title="반도체 '냉장고' 만드는 회사가 상장함", term="냉장고", emoji="🧊", sub="진짜 냉장고 아님", video="fridge door")
     assert any("근거 용어" in p for p in check_hook(no_source, FACTS))

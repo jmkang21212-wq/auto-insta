@@ -25,7 +25,7 @@ from gongsi.reel import make_reel
 from gongsi.render import render
 from gongsi.select import select
 from gongsi.summarize import summarize
-from gongsi.verify import check_caption_layout, check_numbers, check_forbidden, check_risks, check_summary
+from gongsi.verify import check_caption_layout, check_numbers, check_forbidden, check_risks, check_summary, sane_schedule
 
 
 def log(stage: str, **kw):
@@ -102,6 +102,9 @@ def run(adapter: Adapter, date_from: str, date_to: str, only_rcept: str | None, 
             # 4. 추출
             db.stage(run_id, "extract")
             facts = adapter.ipo_facts(d)
+            facts, dropped = sane_schedule(facts)
+            if dropped:
+                log("extract", corp=d.corp_name, dropped_dates=dropped, note="청약 일정과 앞뒤가 안 맞아 뺌")
             log("extract", corp=d.corp_name, documents=facts.raw.get("documents"), found=sorted(facts.raw.get("found", {}).keys()),
                 missing=[k for k in ("band_low_krw", "final_price_krw", "demand_ratio", "lockup_ratio_pct", "float_ratio_pct",
                                      "subscription_start", "refund_date", "listing_date", "revenue_krw") if getattr(facts, k) is None])
@@ -143,12 +146,15 @@ def run(adapter: Adapter, date_from: str, date_to: str, only_rcept: str | None, 
             second = line2(facts)
             hook, chosen, reel_meta = (hooks[0] if hooks else None), 0, None
             for i, h in enumerate(hooks if os.getenv("REELS", "1") != "0" else []):
-                try:
-                    reel_meta = make_reel(h.title, f"({second})" if second else "", h.sub, h.video, out / f"{d.rcept_no}_reel.mp4")
-                    hook, chosen = h, i
+                for q in h.queries():  # 첫 검색어로 영상이 없으면 더 흔한 장면 검색어로 (2026-10-28)
+                    try:
+                        reel_meta = make_reel(h.title, f"({second})" if second else "", h.sub, q, out / f"{d.rcept_no}_reel.mp4")
+                        hook, chosen = h, i
+                        break
+                    except Exception as e:  # noqa: BLE001
+                        log("reel", corp=d.corp_name, hook=i + 1, query=q, ok=False, error=str(e)[:200])
+                if reel_meta:
                     break
-                except Exception as e:  # noqa: BLE001
-                    log("reel", corp=d.corp_name, hook=i + 1, ok=False, error=str(e)[:200])
             log("reel", corp=d.corp_name, ok=bool(reel_meta), hook=chosen + 1 if reel_meta else None, video=reel_meta)
 
             # 5. 검증

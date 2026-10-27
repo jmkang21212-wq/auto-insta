@@ -13,13 +13,14 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from gongsi.config import settings
 from gongsi.models import IpoFacts
 from gongsi.verify import CAPTION_LINE_MAX, check_forbidden, line_width
 
 MODEL = "claude-sonnet-5-5"
+TERMS = {k: v for k, v in json.loads((settings.fixtures_dir / "terms.json").read_text(encoding="utf-8")).items() if not k.startswith("_")}
 HOT_RATIO = 500  # 경쟁률 이모지: 이 이상이면 🔥, 아래면 👀 (근거: 비교 기준 LG CNS 114:1, HD현대마린솔루션 201:1, 더본코리아 734.67:1 사이에서 정함)
 
 PROMPT = """너는 인스타 경제 계정 ekke.now 같은 말투로 공모주 릴스 첫 화면 제목을 쓰는 카피라이터야.
@@ -35,8 +36,11 @@ PROMPT = """너는 인스타 경제 계정 ekke.now 같은 말투로 공모주 �
 4. 숫자 쓰지 마 (숫자는 둘째 줄에 따로 붙는다). 투자 권유·평가 표현 금지 (대박, 따상, 유망, 좋다, 위험하다, 수익 등).
 5. sub: 영상 위에 얹을 밈 같은 한마디. 빗댄 걸 살짝 비트는 말 (예: "진짜 샤워기 아님"). 12자 이내, 숫자 금지.
 6. emoji: 제목 앞에 붙일 이모지 1개 (빗댄 물건).
-7. video: 그 일상 물건이 크게 나오는 스톡 영상 검색어. 영어 2~4단어, 사람 얼굴과 브랜드 로고가 안 나올 만한 것.
-8. 후보 3개, 서로 다른 제품이나 각도로. JSON만: {"hooks":[{"title":"","term":"","emoji":"","sub":"","video":""}]}
+7. video: 그 비유가 '움직이는 장면'으로 나오는 스톡 영상 검색어. 영어 2~4단어. 사람이나 동물이 뭔가 하는 재밌는 장면이면 더 좋음
+   (예: 샤워기 → 'dog shower bath', 균형 감각 → 'tightrope walker balancing'). 가만히 있는 풍경·제품 사진 같은 장면 금지, 브랜드 로고가 안 나올 만한 것.
+8. videos: 7번 검색어 3개를 구체적인 장면 → 더 흔한 장면 순서로 (무료 스톡 영상 사이트에 있을 만한 것. 셋째는 아주 흔한 장면,
+   예: ["kid finger painting", "colorful paint splash", "ink in water"]). video에는 그중 첫째를 적는다.
+9. 후보 3개, 서로 다른 제품이나 각도로. JSON만: {"hooks":[{"title":"","term":"","emoji":"","sub":"","video":"","videos":["","",""]}]}
 
 회사: {corp} / 업종: {industry}
 사업 원문:
@@ -54,6 +58,10 @@ class Hook:
     sub: str  # 영상 위 자막
     video: str  # 스톡 영상 검색어 (영어)
     explain: str = ""  # 캡션 ':' 줄. 신고서 용어 해설 그대로
+    alt_videos: list[str] = field(default_factory=list)  # video로 못 찾으면 차례로 (구체적 → 흔한 장면)
+
+    def queries(self) -> list[str]:
+        return [q for q in dict.fromkeys([self.video, *self.alt_videos]) if q]
 
     def headline(self) -> str:
         return f"{self.emoji} {self.title}".strip()
@@ -167,6 +175,10 @@ def explain_parts(term: str, glossary: dict[str, str], al: dict[str, set[str]] |
     elif evidence:
         names = [n for n in dict.fromkeys([name, term.strip(), *sorted((al or {}).get(_norm(term), set()))]) if n]
         definition = definition_from_evidence(names, evidence)
+    if not definition:  # 신고서에 정의가 없으면 우리가 쓴 고정 풀이(fixtures/terms.json)
+        fixed = next((TERMS[n] for n in (name, term.strip()) if n in TERMS), "")
+        if fixed:
+            definition = f"{name}{_josa(name, '은', '는')} {fixed}" + ("" if fixed.endswith(("임", "함", "음", "다")) else "임")
     m = metaphor(title)
     mapping = f"'{m}'{_josa(m, '은', '는')} {name}{_josa(name, '을', '를')} 빗댄 말임" if m and name and not _alike(m, name) else ""
     return mapping, definition
@@ -219,6 +231,8 @@ def make_hooks(facts: IpoFacts) -> list[Hook]:
     al = aliases(facts.business_evidence)
     for raw in data.get("hooks", [])[:3]:
         h = Hook(**{k: str(raw.get(k, "")).strip() for k in ("title", "term", "emoji", "sub", "video")})
+        alts = [str(q).strip() for q in (raw.get("videos") or []) if isinstance(q, str)]
+        h.alt_videos = [q for q in alts if q != h.video and re.fullmatch(r"[A-Za-z][A-Za-z \-]{2,40}", q)][:3]
         if not check_hook(h, facts):
             h.explain = explain_line(h.term, facts.glossary, al, h.title, facts.business_evidence)
             rank[id(h)] = 0 if explain_parts(h.term, facts.glossary, al, h.title, facts.business_evidence)[1] else 1 if h.explain else 2
