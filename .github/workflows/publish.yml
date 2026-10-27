@@ -1,0 +1,47 @@
+name: publish approved
+on:
+  schedule:
+    - cron: "*/30 23,0-13 * * *"   # 08:00~22:30 KST 30분마다 텔레그램 버튼 응답 확인
+  workflow_dispatch:
+    inputs:
+      cmd:
+        description: "poll(기본) / check / chat-id / list / publish"
+        default: "poll"
+      rcept_no:
+        description: "publish 일 때 접수번호"
+        default: ""
+
+concurrency: { group: posts, cancel-in-progress: false }
+
+jobs:
+  poll:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions: { contents: write }
+    env:
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      IG_USER_ID: ${{ secrets.IG_USER_ID }}
+      IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+      TZ: Asia/Seoul
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip }
+      - run: pip install requests pillow python-dotenv pydantic jinja2
+      - name: 실행
+        run: |
+          CMD="${{ github.event.inputs.cmd || 'poll' }}"
+          if [ "$CMD" = "publish" ]; then
+            python -m gongsi.publish publish --rcept-no "${{ github.event.inputs.rcept_no }}"
+          else
+            python -m gongsi.publish "$CMD"
+          fi
+      - name: 상태 커밋
+        run: |
+          git config user.name "gongsi-bot"
+          git config user.email "gongsi-bot@users.noreply.github.com"
+          git add posts state
+          git diff --cached --quiet || git commit -m "posts: poll $(date '+%F %H:%M')"
+          git pull --rebase origin ${{ github.ref_name }} || true
+          git push

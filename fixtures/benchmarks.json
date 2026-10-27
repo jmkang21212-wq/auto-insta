@@ -1,0 +1,46 @@
+{
+  "_note": "카드의 비교 기준. 숫자마다 출처 URL이 있어야 하고, 출처 없는 항목은 null로 둔다. 확인일 기준이며 정정 공시로 바뀔 수 있다.",
+  "_checked": "2026-10-26",
+  "items": [
+    {
+      "corp": "LG CNS",
+      "listed": "2025-02",
+      "market": "코스피",
+      "demand_ratio": 114,
+      "lockup_pct": 15,
+      "float_pct": null,
+      "offering_krw": null,
+      "sources": {
+        "demand_ratio": "https://www.dailian.co.kr/news/view/1456164/",
+        "lockup_pct": "https://news.bizwatch.co.kr/article/market/2025/01/17/0048"
+      }
+    },
+    {
+      "corp": "HD현대마린솔루션",
+      "listed": "2024-05",
+      "market": "코스피",
+      "demand_ratio": 201,
+      "lockup_pct": 45.1,
+      "float_pct": null,
+      "offering_krw": 742300000000,
+      "sources": {
+        "demand_ratio": "https://biz.newdaily.co.kr/site/data/html/2024/04/26/2024042600282.amp.html",
+        "lockup_pct": "https://biz.newdaily.co.kr/site/data/html/2024/04/26/2024042600282.amp.html",
+        "offering_krw": "https://biz.newdaily.co.kr/site/data/html/2024/04/26/2024042600282.amp.html"
+      }
+    },
+    {
+      "corp": "더본코리아",
+      "listed": "2024-11",
+      "market": "코스피",
+      "demand_ratio": 734.67,
+      "lockup_pct": null,
+      "float_pct": 19.67,
+      "offering_krw": null,
+      "sources": {
+        "demand_ratio": "https://www.newsis.com/view/NISX20241030_0002939542",
+        "float_pct": "https://www.newsis.com/view/NISX20241030_0002939542"
+      }
+    }
+  ]
+}

@@ -1,0 +1,74 @@
+{
+  "_note": "가상 회사입니다. 숫자는 카드 생성·검증을 시험하기 위한 값이며 실제 공시가 아닙니다.",
+  "disclosures": [
+    {
+      "rcept_no": "20261026999001",
+      "corp_code": "99999999",
+      "corp_name": "샘플전자",
+      "report_type": "ipo",
+      "report_name": "[기재정정]증권신고서(지분증권)",
+      "filed_at": "2026-10-26",
+      "parent_rcept_no": "20261001999001",
+      "market": "코스닥"
+    },
+    {
+      "rcept_no": "20261026999002",
+      "corp_code": "99999998",
+      "corp_name": "샘플홀딩스",
+      "report_type": "cb",
+      "report_name": "주요사항보고서(전환사채권발행결정)",
+      "filed_at": "2026-10-26",
+      "market": "코스피"
+    }
+  ],
+  "facts": {
+    "20261026999001": {
+      "corp_name": "샘플전자",
+      "industry": "반도체 검사장비",
+      "market": "코스닥",
+      "band_low_krw": 18000,
+      "band_high_krw": 21000,
+      "final_price_krw": 21000,
+      "shares_offered": 2200000,
+      "offering_amount_krw": 46200000000,
+      "demand_ratio": 1134.5,
+      "lockup_ratio_pct": 5.2,
+      "float_ratio_pct": 31.4,
+      "major_holder_after_pct": 42.1,
+      "forecast_start": "2026-10-20",
+      "forecast_end": "2026-10-24",
+      "final_price_date": "2026-10-26",
+      "subscription_start": "2026-11-03",
+      "subscription_end": "2026-11-04",
+      "refund_date": "2026-11-06",
+      "listing_date": "2026-11-12",
+      "underwriters": ["삼성증권", "KB증권"],
+      "min_shares": 20,
+      "min_deposit_krw": 210000,
+      "revenue_krw": 83200000000,
+      "operating_income_krw": 9100000000,
+      "revenue_mix": [
+        {"name": "검사장비", "pct": 71.0},
+        {"name": "유지보수", "pct": 22.0},
+        {"name": "기타", "pct": 7.0}
+      ],
+      "customers": "국내 대형 반도체 제조사 2곳",
+      "use_of_proceeds": [
+        {"purpose": "시설자금", "amount_krw": 31000000000, "note": "2027년 화성 2공장 증설"},
+        {"purpose": "연구개발", "amount_krw": 9000000000, "note": "차세대 광학 검사 모듈"},
+        {"purpose": "운영자금", "amount_krw": 6200000000}
+      ],
+      "risks": [
+        {"category": "사업위험", "quote": "당사 매출의 약 80%가 상위 2개 고객사에 집중되어 있어 해당 고객사의 투자 축소 시 실적이 크게 영향받을 수 있습니다."},
+        {"category": "회사위험", "quote": "상장 직후 유통 가능 물량이 전체 발행주식의 31.4%로, 단기간 매도 물량 출회 시 주가가 하락할 수 있습니다."}
+      ],
+      "business_evidence": [
+        "당사는 반도체 웨이퍼의 표면 결함을 검출하는 광학 검사장비를 개발, 제조, 판매하고 있습니다.",
+        "검사장비 매출이 전체 매출의 71.0%를 차지하며, 유지보수 및 부품 매출이 22.0%입니다.",
+        "주요 고객은 국내 대형 반도체 제조사 2곳이며, 2025년 매출액은 832억원, 영업이익은 91억원입니다.",
+        "당사는 2027년 화성 2공장 증설을 통해 생산능력을 2배로 확대할 계획입니다."
+      ],
+      "raw": {"_source": "fixture"}
+    }
+  }
+}

@@ -1,0 +1,64 @@
+name: generate cards
+on:
+  schedule:
+    - cron: "30 22 * * 0-4"   # 월~금 07:30 KST (UTC 22:30 전날)
+  workflow_dispatch:
+    inputs:
+      days:
+        description: "며칠 전 공시까지 볼지"
+        default: "10"
+      rcept_no:
+        description: "특정 접수번호만 (비우면 자동 선정)"
+        default: ""
+
+concurrency: { group: posts, cancel-in-progress: false }
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions: { contents: write }
+    env:
+      DART_API_KEY: ${{ secrets.DART_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
+      IMAGE_PROVIDER: pixabay,openverse,none
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      IG_USER_ID: ${{ secrets.IG_USER_ID }}
+      IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+      APPROVAL: ${{ vars.APPROVAL || 'telegram' }}
+      TZ: Asia/Seoul
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip }
+      - run: pip install -r requirements.txt && python -m playwright install --with-deps chromium
+      - name: 카드 생성
+        run: |
+          if [ -n "${{ github.event.inputs.rcept_no }}" ]; then
+            python -m gongsi.pipeline --days 60 --rcept-no "${{ github.event.inputs.rcept_no }}"
+          else
+            python -m gongsi.pipeline --days "${{ github.event.inputs.days || '10' }}"
+          fi
+      - name: posts/ 로 옮기기
+        run: python -m gongsi.publish stage
+      - name: 커밋·푸시 (이미지 공개 URL이 되게 먼저 올린다)
+        run: |
+          git config user.name "gongsi-bot"
+          git config user.email "gongsi-bot@users.noreply.github.com"
+          git add posts assets/logos state
+          git diff --cached --quiet || git commit -m "cards: $(date +%F)"
+          git pull --rebase origin ${{ github.ref_name }} || true
+          git push
+      - name: 텔레그램 승인 요청 (또는 auto 게시)
+        run: python -m gongsi.publish notify
+      - name: 상태 커밋
+        run: |
+          git add posts state
+          git diff --cached --quiet || git commit -m "posts: notify $(date +%F)"
+          git pull --rebase origin ${{ github.ref_name }} || true
+          git push
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: run-output, path: out/run*, retention-days: 7 }

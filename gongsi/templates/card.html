@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<style>
+  {{ fonts|safe }}
+  /* 토스 다크모드 토큰 기준: bg #0F1115, elevated #1A1D24, text #F2F4F6 / #B0B8C1, accent #5EA9FF(토스 #4795FF보다 한 단계 밝게) */
+  :root { --bg:#0F1115; --panel:rgba(26,29,36,.82); --ink:#F2F4F6; --sub:#B0B8C1; --mute:#8B95A1; --accent:#5EA9FF; --amber:#F5C84B; --line:#2A2F3A; }
+  * { box-sizing:border-box; }
+  /* 글래스모피즘: 반투명 흰 유리 + 뒤 배경 블러 + 가는 테두리 + 상단 하이라이트 */
+  .glass { background:rgba(255,255,255,.07); backdrop-filter:blur(26px) saturate(150%); -webkit-backdrop-filter:blur(26px) saturate(150%);
+           border:1px solid rgba(255,255,255,.16); box-shadow:inset 0 1px 0 rgba(255,255,255,.18), 0 20px 50px rgba(0,0,0,.35); }
+  body { margin:0; width:{{ w }}px; height:{{ h }}px; background:var(--bg); color:var(--ink);
+         font-family:"Pretendard","Noto Sans CJK KR","Apple SD Gothic Neo",sans-serif;
+         word-break:keep-all; overflow-wrap:break-word; letter-spacing:-0.01em; }
+  .card { width:{{ w }}px; height:{{ h }}px; display:flex; flex-direction:column; overflow:hidden; position:relative; }
+
+  /* 배경: 정보형 카드는 1장 전경 이미지를 흐리고 어둡게 깔고, 이미지형은 상단 800px에 선명하게 */
+  .bgimg { position:absolute; inset:-40px; background-size:cover; background-position:center; filter:blur(10px) brightness(.55) saturate(1.05); }
+  .bgfade { position:absolute; inset:0; background:linear-gradient(180deg, rgba(15,17,21,.25) 0%, rgba(15,17,21,.6) 50%, rgba(15,17,21,.92) 100%); }
+  .hero { position:absolute; left:0; right:0; top:0; height:800px; overflow:hidden; }
+  .hero img { width:100%; height:100%; object-fit:cover; display:block; filter:saturate(.9) contrast(1.06) brightness(.92); }
+  .hero .tint { position:absolute; inset:0; background:#1f3a8a; mix-blend-mode:color; opacity:.12; }
+  .hero .shade { position:absolute; left:0; right:0; bottom:0; height:72%; background:linear-gradient(180deg, rgba(15,17,21,0) 0%, rgba(15,17,21,.9) 52%, #0F1115 100%); }
+  .hero .topshade { position:absolute; left:0; right:0; top:0; height:220px; background:linear-gradient(180deg, rgba(15,17,21,.75) 0%, rgba(15,17,21,0) 100%); }
+
+  .top { position:relative; display:flex; justify-content:space-between; align-items:center; padding:52px 72px 0; }
+  .brand { display:flex; align-items:center; gap:20px; }
+  /* 로고 칩: 흰 바탕 둥근 상자. 어두운 로고든 밝은 로고든 어두운 배경 위에서 읽히게 */
+  .chip { display:inline-flex; align-items:center; justify-content:center; background:#fff; border-radius:16px; padding:10px 18px; box-shadow:0 6px 20px rgba(0,0,0,.35); }
+  .chip.light { background:transparent; box-shadow:none; padding:0; }  /* 흰 글자 로고는 칩 없이 어두운 배경에 그대로 */
+  .chip img { height:40px; width:auto; max-width:220px; object-fit:contain; display:block; }
+  .chip.big { border-radius:22px; padding:16px 28px; margin-bottom:28px; align-self:flex-start; }
+  .chip.big img { height:64px; max-width:360px; }
+  .corp { font-size:38px; font-weight:800; letter-spacing:-0.02em; }
+  .page { font-size:28px; font-weight:600; color:var(--mute); }
+  .badge { font-size:26px; font-weight:700; color:#0F1115; background:var(--amber); box-shadow:0 8px 24px rgba(245,200,75,.25); border-radius:999px; padding:12px 28px; white-space:nowrap; }
+
+  .body { position:relative; flex:1; display:flex; flex-direction:column; padding:0 72px 0; }
+  .body.image { justify-content:flex-end; gap:24px; }
+  .body.info { padding-top:40px; }
+  .main { flex:1; display:flex; flex-direction:column; justify-content:center; gap:28px; }
+  .body.closing .main { justify-content:flex-end; gap:36px; padding-bottom:12px; }
+
+  h1 { margin:0; font-size:70px; line-height:1.28; font-weight:800; letter-spacing:-0.025em; white-space:pre-line; text-shadow:0 2px 24px rgba(15,17,21,.8); }
+  h1.long { font-size:44px; line-height:1.4; letter-spacing:-0.02em; }
+  h1.giant { font-size:140px; line-height:1; color:var(--accent); letter-spacing:-0.03em; }
+  h1.corpname { font-size:96px; line-height:1.1; letter-spacing:-0.035em; }
+  h1 em { font-style:normal; color:var(--amber); }
+  h1.giant em { color:var(--accent); }
+  .hook { font-size:50px; font-weight:800; line-height:1.3; letter-spacing:-0.02em; white-space:pre-line; }
+  .hook em, .line em, .sub em, .cta em { font-style:normal; color:var(--amber); font-weight:800; }
+  .line em, .sub em { color:var(--ink); }
+  .cta em { color:#0F1115; }
+  .sub { font-size:34px; font-weight:500; color:var(--sub); line-height:1.5; }
+  .line { font-size:32px; font-weight:500; line-height:1.55; color:var(--sub); }
+  .tease { font-size:32px; font-weight:700; color:var(--accent); line-height:1.4; }
+  .bottom { display:flex; justify-content:space-between; align-items:flex-end; margin-top:32px; }
+
+  .panel { border-radius:32px; padding:52px 56px; }
+  .bar { height:72px; background:rgba(255,255,255,.10); border-radius:18px; overflow:hidden; }
+  .bar > div { height:100%; background:var(--accent); border-radius:18px; }
+  .legend { display:flex; justify-content:space-between; font-size:28px; font-weight:600; color:var(--sub); margin-top:24px; }
+  .row { display:flex; align-items:center; gap:28px; font-size:30px; font-weight:600; }
+  .row + .row { margin-top:34px; }
+  .row .lab { width:200px; color:var(--sub); }
+  .row .trk { flex:1; height:58px; background:rgba(255,255,255,.10); border-radius:14px; overflow:hidden; }
+  .row .trk > div { height:100%; background:var(--accent); border-radius:14px; }
+  .row .trk.amber > div { background:var(--amber); }
+  .row .val { width:190px; text-align:right; font-weight:800; color:var(--ink); }
+
+  .panel.cmp { padding:40px 48px 44px; }
+  .cmp-legend { font-size:24px; font-weight:600; color:var(--mute); margin-bottom:28px; }
+  .cmp-row { display:flex; align-items:center; gap:24px; }
+  .cmp-row + .cmp-row { margin-top:22px; }
+  .cmp-name { width:250px; font-size:27px; font-weight:600; color:var(--sub); line-height:1.25; }
+  .cmp-name small { display:block; font-size:21px; font-weight:500; color:var(--mute); }
+  .cmp-trk { flex:1; height:40px; background:rgba(255,255,255,.10); border-radius:10px; overflow:hidden; }
+  .cmp-trk > div { height:100%; background:rgba(255,255,255,.34); border-radius:10px; }
+  .cmp-val { width:170px; text-align:right; font-size:28px; font-weight:700; color:var(--sub); }
+  .cmp-row.is-hero .cmp-name { color:var(--ink); font-weight:800; }
+  .cmp-row.is-hero .cmp-trk > div { background:var(--accent); }
+  .cmp-row.is-hero .cmp-val { color:var(--ink); font-weight:800; font-size:32px; }
+  .cmp-row.is-hero .cmp-trk { height:48px; }
+  .check { display:flex; gap:32px; align-items:center; border-radius:28px; padding:30px 40px; }
+  .check + .check { margin-top:24px; }
+  .check .box { width:52px; height:52px; border:5px solid var(--accent); border-radius:14px; flex-shrink:0; }
+  .check .lab { font-size:28px; font-weight:600; color:var(--sub); margin-bottom:8px; }
+  .check .val { font-size:46px; font-weight:800; letter-spacing:-0.02em; }
+
+  /* 위험 인용: 색 막대 대신 큰 따옴표 글리프 + 작은 출처 꼬리표. 원문 인용이라는 느낌을 활자로만 낸다 */
+  .quote { position:relative; border-radius:28px; padding:32px 40px 30px 80px; }
+  h1 + .quote, .line + .quote { margin-top:40px; }
+  .quote + .quote { margin-top:20px; }
+  .quote:before { content:"\201C"; position:absolute; left:34px; top:26px; font-size:72px; line-height:1; font-weight:900; color:rgba(255,255,255,.22); font-family:Georgia, 'Times New Roman', serif; }
+  .quote .cat { font-size:26px; font-weight:700; color:var(--amber); margin-bottom:10px; }
+  .quote .ttl { font-size:34px; line-height:1.4; font-weight:800; color:var(--ink); letter-spacing:-0.02em; }
+  .quote .txt { font-size:29px; line-height:1.55; font-weight:500; color:var(--sub); margin-top:12px; word-break:keep-all; }
+  .quote .txt em { font-style:normal; font-weight:700; color:var(--ink); }
+
+  .tl { display:flex; justify-content:space-between; position:relative; padding-top:36px; }
+  .tl:before { content:""; position:absolute; left:60px; right:60px; top:50px; height:6px; background:rgba(255,255,255,.14); border-radius:3px; }
+  .tl .pt { width:210px; text-align:center; font-size:27px; font-weight:600; color:var(--mute); position:relative; line-height:1.5; }
+  .tl .pt .dot { width:28px; height:28px; border-radius:50%; background:rgba(255,255,255,.3); margin:0 auto 20px; }
+  .tl .pt.main { color:var(--ink); font-weight:800; font-size:31px; }
+  .tl .pt.main .dot { width:44px; height:44px; background:var(--bg); border:10px solid var(--amber); margin-top:-8px; }
+
+  .cta { background:var(--accent); color:#0F1115; border-radius:28px; padding:38px 44px; font-size:42px; font-weight:800; line-height:1.3; }
+  .cta small { display:block; font-size:28px; font-weight:600; margin-top:12px; opacity:.85; }
+  .note { display:flex; gap:14px; align-items:flex-start; font-size:27px; line-height:1.5; color:var(--sub); font-weight:500; }
+  .note .q { flex-shrink:0; width:34px; height:34px; border-radius:50%; border:2.5px solid var(--mute); color:var(--mute); font-size:21px; font-weight:800; display:flex; align-items:center; justify-content:center; margin-top:3px; }
+  .check .why { font-size:24px; line-height:1.45; color:var(--mute); font-weight:500; margin-top:8px; }
+  .ask { font-size:36px; line-height:1.45; font-weight:600; color:var(--ink); border-radius:22px; padding:28px 32px; }
+  .ask.glass { background:rgba(245,200,75,.10); border-color:rgba(245,200,75,.35); }
+  .note em, .ask em, .check .why em { font-style:normal; color:var(--ink); font-weight:800; }
+  .foot { font-size:23px; font-weight:500; color:var(--mute); line-height:1.5; }
+
+  /* 출처 띠: 모든 카드 하단 고정 */
+  .source { position:relative; display:flex; align-items:center; gap:14px; padding:26px 72px 40px; font-size:22px; font-weight:600; color:var(--mute); border-top:1px solid rgba(255,255,255,.10); margin-top:28px; background:rgba(15,17,21,.35); backdrop-filter:blur(12px); }
+  .source svg { width:26px; height:26px; flex-shrink:0; }
+  .source .right { margin-left:auto; color:#5b6472; }
+</style>
+</head>
+<body>
+<div class="card">
+{% if card.kind == 'image' %}
+  <div class="hero">
+    <img src="{{ image }}" alt="">
+    <div class="tint"></div>
+    <div class="topshade"></div>
+    <div class="shade"></div>
+  </div>
+  <div class="top">
+    {% if card.n == 1 %}<span class="page">공모주 브리핑</span>{% else %}
+      <span class="brand">{% if logo %}<span class="chip {{ logo_tone }}"><img src="{{ logo }}" alt=""></span>{% endif %}<span class="corp">{{ corp }}</span></span>{% endif %}
+    <span class="badge">{{ card.data.badge }}</span>
+  </div>
+  <div class="body image">
+    {% if card.n == 1 %}
+      {% if logo %}<span class="chip big {{ logo_tone }}"><img src="{{ logo }}" alt=""></span>{% endif %}
+      <h1 class="corpname">{{ card.title }}</h1>
+      <div class="sub">{{ card.sub|hl }}</div>
+      <div class="hook">{{ card.data.hook|hl }}</div>
+    {% else %}
+      <h1 class="{{ 'long' if card.title|length > 30 }}">{{ card.title|hl }}</h1>
+      {% if card.sub %}<div class="sub">{{ card.sub|hl }}</div>{% endif %}
+      {% for l in card.lines %}<div class="line">{{ l|hl }}</div>{% endfor %}
+    {% endif %}
+    {% for r in card.data.risks or [] %}
+      <div class="quote glass"><div class="cat">{{ r.label }}</div><div class="ttl">{{ r.title }}</div>{% if r.lines %}<div class="txt">{% for l in r.lines %}{{ l|hl }}{% if not loop.last %}<br>{% endif %}{% endfor %}</div>{% endif %}</div>
+    {% endfor %}
+    <div class="bottom"><div class="tease">{{ card.tease }}</div><span class="page">{{ card.n }}/{{ total }}</span></div>
+  </div>
+{% else %}
+  <div class="bgimg" style="background-image:url('{{ image }}')"></div>
+  <div class="bgfade"></div>
+  <div class="top">
+    <span class="brand">{% if logo %}<span class="chip {{ logo_tone }}"><img src="{{ logo }}" alt=""></span>{% endif %}<span class="corp">{{ corp }}</span></span>
+    <span class="badge">{{ card.data.badge }}</span>
+  </div>
+  <div class="body info {{ card.kind }}">
+    <div class="main">
+      {% if card.sub %}<div class="sub">{{ card.sub|hl }}</div>{% endif %}
+      <h1 class="{{ 'giant' if card.kind in ('number', 'metric', 'compare') else ('long' if card.title|length > 30) }}">{{ card.title|hl }}</h1>
+
+      {% if card.kind == 'compare' %}
+        <div class="panel glass cmp">
+          <div class="cmp-legend">{{ card.data.legend }}</div>
+          {% for r in card.data.compare %}
+          <div class="cmp-row {{ 'is-hero' if r.hero }}">
+            <span class="cmp-name">{{ r.name }}{% if r.when %}<small>{{ r.when[:4] }}.{{ r.when[5:7] }}</small>{% endif %}</span>
+            <div class="cmp-trk"><div style="width:{{ r.w }}%"></div></div>
+            <span class="cmp-val">{{ r.label }}</span>
+          </div>
+          {% endfor %}
+        </div>
+      {% elif card.kind == 'number' %}
+        <div class="panel glass">
+          <div class="bar"><div style="width:{{ card.data.float_pct }}%"></div></div>
+          <div class="legend"><span>유통 가능 {{ card.data.float_pct }}%</span><span>{{ card.data.lock_label }}</span></div>
+        </div>
+      {% elif card.kind == 'demand' %}
+        <div class="panel glass">
+          <div class="row"><span class="lab">경쟁률</span><div class="trk"><div style="width:{{ 100 if card.data.ratio else 0 }}%"></div></div><span class="val">{{ '%s:1' % '{:,.1f}'.format(card.data.ratio) if card.data.ratio else '예정' }}</span></div>
+          <div class="row"><span class="lab">확약 비율</span><div class="trk amber"><div style="width:{{ card.data.lock }}%"></div></div><span class="val">{{ card.data.lock }}%</span></div>
+          <div class="row"><span class="lab">확정 공모가</span><div class="trk" style="background:transparent;border:3px solid var(--line)"></div><span class="val">{{ card.data.price }}</span></div>
+        </div>
+      {% elif card.kind == 'proceeds' %}
+        <div class="panel glass">
+          {% for b in card.data.bars %}
+          <div class="row"><span class="lab">{{ b.name }}</span><div class="trk"><div style="width:{{ b.w }}%"></div></div><span class="val">{{ b.amt }}</span></div>
+          {% endfor %}
+        </div>
+      {% elif card.kind == 'checklist' %}
+        <div>
+        {% for it in card.data.checks %}
+          <div class="check glass"><div class="box"></div><div><div class="lab">{{ it.label }}</div><div class="val">{{ it.value }}</div>{% if it.why %}<div class="why">{{ it.why }}</div>{% endif %}</div></div>
+        {% endfor %}
+        </div>
+      {% elif card.kind == 'schedule' %}
+        <div class="panel glass">
+          <div class="tl">
+            {% for p in card.data.timeline %}
+            <div class="pt {{ 'main' if p.main }}"><div class="dot"></div>{{ p.label }}<br>{{ p.date }}</div>
+            {% endfor %}
+          </div>
+        </div>
+      {% endif %}
+
+      {% for l in card.lines %}{% if l %}{% if card.kind == 'closing' %}<div class="ask glass">{{ l|hl }}</div>{% else %}<div class="line">{{ l|hl }}</div>{% endif %}{% endif %}{% endfor %}
+      {% if card.data.note %}<div class="note"><span class="q">?</span><span>{{ card.data.note|hl }}</span></div>{% endif %}
+    </div>
+
+    {% if card.kind == 'closing' %}
+      <div class="cta">잊지 않게 저장해 두세요<small>{{ card.data.cta|hl }}</small></div>
+      <div class="bottom"><span class="foot">{{ card.data.footer }}</span><span class="page">{{ card.n }}/{{ total }}</span></div>
+    {% else %}
+      <div class="bottom"><div class="tease">{{ card.tease }}</div><span class="page">{{ card.n }}/{{ total }}</span></div>
+    {% endif %}
+  </div>
+{% endif %}
+  <div class="source">
+    <svg viewBox="0 0 24 24" fill="none" stroke="#8B95A1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v6c0 5-3.5 8.5-8 9-4.5-.5-8-4-8-9V6l8-3z"/><path d="M9 12l2 2 4-4"/></svg>
+    <span>{{ card.data.source }}</span>
+    <span class="right">투자 권유 아님</span>
+  </div>
+</div>
+</body>
+</html>

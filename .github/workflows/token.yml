@@ -1,0 +1,26 @@
+name: refresh instagram token
+on:
+  schedule:
+    - cron: "0 1 * * 1"   # 매주 월요일 10:00 KST. 장기 토큰은 60일짜리라 매주 연장하면 안전
+  workflow_dispatch:
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    env:
+      IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install requests pillow python-dotenv pydantic jinja2
+      - id: t
+        run: python -m gongsi.publish refresh-token
+      - name: Secret 갱신 (GITHUB_TOKEN은 secret을 못 써서 PAT(GH_PAT, repo 권한) 필요)
+        if: steps.t.outputs.token != ''
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+          NEW_TOKEN: ${{ steps.t.outputs.token }}
+        run: gh secret set IG_ACCESS_TOKEN --body "$NEW_TOKEN" --repo "${{ github.repository }}"

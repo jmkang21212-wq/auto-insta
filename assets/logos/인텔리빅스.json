@@ -1,0 +1,14 @@
+{
+ "corp": "인텔리빅스",
+ "homepage": "http://www.intellivix.com",
+ "source": "https://www.intellivix.ai/images/favicon.svg",
+ "alt": "icon",
+ "picked_by": "claude",
+ "tone": "dark",
+ "candidates": [
+  "https://www.intellivix.ai/images/og.jpg",
+  "https://www.intellivix.ai/images/apple-touch-icon.png",
+  "https://www.intellivix.ai/images/favicon.svg",
+  "https://www.intellivix.ai/images/favicon.ico"
+ ]
+}
