@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from datetime import date, timedelta
 from pathlib import Path
@@ -17,8 +18,10 @@ from gongsi import cards as cardmod
 from gongsi.adapters.base import Adapter
 from gongsi.config import settings
 from gongsi.db import DB
+from gongsi.hook import line2, make_hooks
 from gongsi.models import Disclosure
 from gongsi.logos import fetch_logo
+from gongsi.reel import make_reel
 from gongsi.render import render
 from gongsi.select import select
 from gongsi.summarize import summarize
@@ -96,6 +99,14 @@ def run(adapter: Adapter, date_from: str, date_to: str, only_rcept: str | None, 
                     continue
             summary, how = summarize(facts)
             log("summary", corp=d.corp_name, summary_by=how, lines=summary.business_lines, risks=summary.risk_lines)
+            # 훅: 회사 개요(신고서 사업 원문·용어 해설)에서 일상 물건 비유 후보 3개. 근거 대조를 통과한 것만, 실패하면 훅 없이 간다
+            try:
+                hooks = make_hooks(facts)
+            except Exception as e:  # noqa: BLE001
+                hooks = []
+                log("hook", corp=d.corp_name, ok=False, error=str(e)[:200])
+            hook = hooks[0] if hooks else None
+            log("hook", corp=d.corp_name, hooks=[f"{h.headline()} / {h.sub} / {h.video}" for h in hooks])
 
             # 5. 검증
             db.stage(run_id, "verify")
@@ -110,10 +121,13 @@ def run(adapter: Adapter, date_from: str, date_to: str, only_rcept: str | None, 
                 problems.append(f"매출 숫자가 원문에 {occ}번만 나옴 (열 선택 오류 의심)")
             problems += check_forbidden(summary.business_lines + [facts.industry or ""] + [l for pair in summary.risk_lines for l in pair])
             # 캡션도 카드와 같은 기준으로: 숫자는 facts·derived에서만 (출처 줄의 접수번호는 제외), 금지어 없음, 줄바꿈 규칙
-            cap = cardmod.caption(facts, d.rcept_no, summary, doc)
-            cap_body = cap.replace(d.rcept_no, "")  # 접수번호는 공시 숫자가 아니라 출처 표기
-            problems += [f"캡션: {p}" for p in check_numbers([cap_body], facts) if not any(f"'{k}'" in p for k in allowed_derived)]
-            problems += [f"캡션: {p}" for p in check_forbidden([cap_body])]
+            cap = cardmod.caption(facts, d.rcept_no, summary, doc, hook, credit="📷 자료 화면: Pixabay")
+            # 숫자·금지어 대조는 위험 덩어리를 뺀 판으로: 위험 소제목은 원문 그대로(인용), 쉬운 말 요약은 check_risks가 원문과 따로 대조
+            cap_check = cardmod.caption(facts.model_copy(update={"risks": []}), d.rcept_no,
+                                        summary.model_copy(update={"risk_lines": []}), doc, hook).replace(d.rcept_no, "")
+            second = line2(facts)  # 릴스 화면 둘째 줄 숫자도 같은 기준으로
+            problems += [f"캡션: {p}" for p in check_numbers([cap_check, second], facts) if not any(f"'{k}'" in p for k in allowed_derived)]
+            problems += [f"캡션: {p}" for p in check_forbidden([cap_check])]
             problems += [f"캡션: {p}" for p in check_caption_layout(cap)]
             verified = not problems
             db.add_fact(issue_ids[d.rcept_no], facts.model_dump(), {"summary": summary.model_dump(), "by": how, "derived": derived},
@@ -128,7 +142,22 @@ def run(adapter: Adapter, date_from: str, date_to: str, only_rcept: str | None, 
             logo_path, logo_how = fetch_logo(facts.corp_name, facts.homepage)
             log("logo", corp=d.corp_name, homepage=facts.homepage, result=logo_how)
             paths, image_log = render(card_list, facts.corp_name, facts.industry or "", out, d.rcept_no)
+            # 훅 릴스: 위 훅 + 둘째 줄 숫자, 가운데 훅의 물건 스톡 영상 + 자막. 못 만들면 캐러셀로 간다
+            reel_meta = None
+            if hook and os.getenv("REELS", "1") != "0":
+                try:
+                    reel_meta = make_reel(hook.title, f"({second})" if second else "", hook.sub, hook.video,
+                                          out / f"{d.rcept_no}_reel.mp4")
+                except Exception as e:  # noqa: BLE001
+                    log("reel", corp=d.corp_name, ok=False, error=str(e)[:200])
+            if not reel_meta:
+                cap = cardmod.caption(facts, d.rcept_no, summary, doc, hook)  # 자료 화면이 없으니 그 줄을 뺀다
+            log("reel", corp=d.corp_name, ok=bool(reel_meta), video=reel_meta)
             (out / f"{d.rcept_no}_caption.txt").write_text(cap, encoding="utf-8")
+            # 게시 단계에서 다른 훅으로 다시 만들 수 있게 재료를 남긴다 (posts/<날짜>/<접수번호>/bundle.json)
+            (out / f"{d.rcept_no}_bundle.json").write_text(json.dumps({
+                "facts": facts.model_dump(exclude={"raw"}), "summary": summary.model_dump(), "doc": doc,
+                "hooks": [h.__dict__ for h in hooks], "chosen": 0, "line2": second, "video": reel_meta}, ensure_ascii=False), encoding="utf-8")
             db.add_post(run_id, issue_ids[d.rcept_no], [c.__dict__ for c in card_list], [str(p) for p in paths], cap)
             if facts.listing_date:
                 db.add_followup(db.conn.execute("SELECT id FROM disclosure WHERE rcept_no=?", (d.rcept_no,)).fetchone()["id"],
@@ -139,6 +168,7 @@ def run(adapter: Adapter, date_from: str, date_to: str, only_rcept: str | None, 
                 f.write(json.dumps({"run": run_id, "rcept_no": d.rcept_no, "corp": d.corp_name, "date": today.isoformat(),
                                     "subscription_start": facts.subscription_start, "n": len(paths),
                                     "phase": "post" if facts.demand_ratio is not None else "pre",
+                                    "format": "reel" if reel_meta else "carousel",
                                     "sample": adapter.name == "sample"}, ensure_ascii=False) + "\n")
             produced += 1
 

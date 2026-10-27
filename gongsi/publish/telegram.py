@@ -3,7 +3,8 @@
 준비: @BotFather 에서 봇 생성 → TELEGRAM_BOT_TOKEN. 봇에게 아무 말이나 보낸 뒤
   https://api.telegram.org/bot<TOKEN>/getUpdates 에서 chat.id 를 읽어 TELEGRAM_CHAT_ID.
 
-보내는 것: 카드 전부(최대 10장 미디어 그룹) + 캡션 + [게시 승인] [넘기기] 버튼.
+보내는 것: 릴스면 영상 + 훅 후보 + 캡션 + [이 릴스로 게시] [넘기기] [N번 훅으로],
+          캐러셀이면 카드 전부(최대 10장 미디어 그룹) + 캡션 + [게시 승인] [넘기기].
 버튼 응답(callback_query)은 poll()이 읽고, 처리한 update_id는 state/telegram_offset.json 에 저장해 두 번 처리하지 않습니다.
 """
 from __future__ import annotations
@@ -33,8 +34,36 @@ def chat_id() -> str:
     return os.environ["TELEGRAM_CHAT_ID"]
 
 
+def _bundle(post: Post) -> dict:
+    f = post.dir / "bundle.json"
+    return json.loads(f.read_text(encoding="utf-8")) if f.exists() else {}
+
+
 def send_for_approval(post: Post) -> dict:
-    """미디어 그룹 + 버튼 메시지. 돌려주는 dict를 meta['telegram']에 저장한다."""
+    """릴스면 영상 + 캡션 + 훅 후보, 캐러셀이면 카드 묶음 + 캡션. 버튼 메시지를 meta['telegram']에 저장한다."""
+    if post.reel:
+        return _send_reel(post)
+    return _send_cards(post)
+
+
+def _send_reel(post: Post) -> dict:
+    _api("sendVideo", chat_id=chat_id(), supports_streaming="true",
+         files={"video": (post.reel.name, post.reel.read_bytes(), "video/mp4")})
+    b = _bundle(post)
+    hooks, chosen = b.get("hooks", []), b.get("chosen", 0)
+    alts = "\n".join(f"{'▶' if i == chosen else ' '} {i + 1}. {h['emoji']} {h['title']} ({h['sub']})" for i, h in enumerate(hooks))
+    head = f"[{post.meta['corp']}] 릴스 · {post.meta['date']}\n접수번호 {post.rcept_no}\n\n훅 후보\n{alts}\n\n── 캡션 ──\n"
+    rows = [[{"text": "✅ 이 릴스로 게시", "callback_data": f"ok:{post.rcept_no}"},
+             {"text": "⏭ 넘기기", "callback_data": f"no:{post.rcept_no}"}]]
+    other = [{"text": f"🔁 {i + 1}번 훅으로", "callback_data": f"h{i + 1}:{post.rcept_no}"} for i in range(len(hooks)) if i != chosen]
+    if other:
+        rows.append(other)
+    msg = _api("sendMessage", chat_id=chat_id(), text=(head + post.caption)[:3900],
+               reply_markup=json.dumps({"inline_keyboard": rows}), disable_web_page_preview="true")
+    return {"message_id": msg["message_id"], "chat_id": msg["chat"]["id"], "format": "reel"}
+
+
+def _send_cards(post: Post) -> dict:
     imgs = post.images
     # 텔레그램 미디어 그룹은 2~10장. 11장(브랜드 홍보 장 포함)이면 10장 + 1장으로 나눠 보낸다
     for start in range(0, len(imgs), 10):
@@ -64,7 +93,7 @@ def notify(text: str) -> None:
 
 
 def read_decisions() -> list[tuple[str, str, dict]]:
-    """[(결정 'ok'|'no', 접수번호, callback_query)] 를 돌려주고 오프셋을 저장한다."""
+    """[(결정 'ok'|'no'|'h1'~'h3'(그 번호 훅으로 다시 만들기), 접수번호, callback_query)] 를 돌려주고 오프셋을 저장한다."""
     offset = 0
     if STATE.exists():
         offset = json.loads(STATE.read_text(encoding="utf-8")).get("offset", 0)
@@ -77,7 +106,7 @@ def read_decisions() -> list[tuple[str, str, dict]]:
         if not cq or ":" not in (cq.get("data") or ""):
             continue
         decision, rcept = cq["data"].split(":", 1)
-        if decision in ("ok", "no"):
+        if decision in ("ok", "no", "h1", "h2", "h3"):
             out.append((decision, rcept, cq))
     STATE.parent.mkdir(parents=True, exist_ok=True)
     STATE.write_text(json.dumps({"offset": last}), encoding="utf-8")

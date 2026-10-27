@@ -2,6 +2,8 @@
 
 posts/<YYYY-MM-DD>/<접수번호>/
   01.jpg … NN.jpg   카드 (PNG → JPEG. 인스타그램은 JPEG만 받고, 공개 URL에서 직접 가져간다)
+  reel.mp4          훅 릴스 (있으면 릴스로 게시. 다른 훅으로 다시 만들면 reel_2.mp4 처럼 새 이름: raw 주소 캐시 회피)
+  bundle.json       다시 만들기 재료 (facts, summary, 훅 후보, 고른 번호)
   caption.txt
   meta.json         {corp, rcept_no, date, n, status: pending|approved|rejected|published|failed, telegram: {...}, instagram: {...}}
 
@@ -52,6 +54,15 @@ class Post:
         return sorted(self.dir.glob("[0-9][0-9].jpg"))
 
     @property
+    def reel(self) -> Path | None:
+        name = self.meta.get("reel")
+        return self.dir / name if name and (self.dir / name).exists() else None
+
+    @property
+    def reel_url(self) -> str | None:
+        return raw_url(self.reel.relative_to(ROOT)) if self.reel else None
+
+    @property
     def caption(self) -> str:
         return (self.dir / "caption.txt").read_text(encoding="utf-8")
 
@@ -76,8 +87,14 @@ def stage(run_dir: Path, rcept_no: str, corp: str, when: date | None = None) -> 
     for i, png in enumerate(pngs, start=1):
         Image.open(png).convert("RGB").save(out / f"{i:02d}.jpg", "JPEG", quality=90, optimize=True)
     shutil.copy(run_dir / f"{rcept_no}_caption.txt", out / "caption.txt")
+    reel = run_dir / f"{rcept_no}_reel.mp4"
+    if reel.exists():
+        shutil.copy(reel, out / "reel.mp4")
+    if (run_dir / f"{rcept_no}_bundle.json").exists():
+        shutil.copy(run_dir / f"{rcept_no}_bundle.json", out / "bundle.json")
     post = Post(out, {"corp": corp, "rcept_no": rcept_no, "date": when.isoformat(), "n": len(pngs),
-                      "status": "pending", "source_run": run_dir.name})
+                      "status": "pending", "source_run": run_dir.name,
+                      "format": "reel" if reel.exists() else "carousel", "reel": "reel.mp4" if reel.exists() else None})
     post.save()
     return post
 

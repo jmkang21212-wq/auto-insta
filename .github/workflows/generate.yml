@@ -34,6 +34,8 @@ jobs:
       - uses: actions/setup-python@v5
         with: { python-version: "3.12", cache: pip }
       - run: pip install -r requirements.txt && python -m playwright install --with-deps chromium
+      - name: ffmpeg (훅 릴스 합성)
+        run: command -v ffmpeg || (sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg)
       - name: 카드 생성
         run: |
           if [ -n "${{ github.event.inputs.rcept_no }}" ]; then

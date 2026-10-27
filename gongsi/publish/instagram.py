@@ -15,6 +15,7 @@
 """
 from __future__ import annotations
 
+import json
 import os
 import time
 
@@ -92,6 +93,19 @@ def publish_carousel(image_urls: list[str], caption: str) -> dict:
     media_id = _call("POST", f"{_ig()}/media_publish", creation_id=carousel)["id"]
     permalink = _call("GET", media_id, fields="permalink").get("permalink")
     return {"media_id": media_id, "permalink": permalink, "children": children}
+
+
+def publish_reel(video_url: str, caption: str, audio_id: str | None = None) -> dict:
+    """릴스 게시. 영상은 공개 URL(깃허브 raw), 9:16 H.264. 피드에도 보이게 share_to_feed=true.
+    audio_id는 인스타 음악 API(Facebook 로그인 연결에서만)로 고른 곡. Instagram 로그인 연결이면 비워 둔다."""
+    params = {"media_type": "REELS", "video_url": video_url, "caption": caption[:2200], "share_to_feed": "true", "thumb_offset": "500"}
+    if audio_id:
+        params["audio_configuration"] = json.dumps({"audio_id": audio_id, "audio_volume": 100, "video_volume": 0})
+    container = _call("POST", f"{_ig()}/media", **params)["id"]
+    wait_finished(container, minutes=10)  # 영상은 서버 처리 시간이 걸린다
+    media_id = _call("POST", f"{_ig()}/media_publish", creation_id=container)["id"]
+    permalink = _call("GET", media_id, fields="permalink").get("permalink")
+    return {"media_id": media_id, "permalink": permalink, "container": container, "format": "reel", "audio_id": audio_id}
 
 
 def refresh_token() -> dict:

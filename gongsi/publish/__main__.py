@@ -3,6 +3,7 @@
   stage          최근 파이프라인 실행(out/produced.jsonl)의 카드를 posts/<날짜>/<접수번호>/ 로 옮긴다 (PNG→JPEG, meta.json pending)
   notify         pending 인데 아직 텔레그램에 안 보낸 게시물을 보내 승인을 받는다 (APPROVAL=auto 면 바로 게시)
   poll           텔레그램 버튼 응답을 읽어 승인된 것을 인스타그램에 게시한다 (approved 상태로 남은 것도 재시도)
+                 릴스면 [N번 훅으로] 버튼에 그 훅으로 릴스·캡션을 다시 만들어 다시 승인 요청
   publish --rcept-no N   승인 없이 바로 게시 (수동)
   check          인스타그램 토큰·한도, 텔레그램 봇 연결 확인
   refresh-token  인스타그램 장기 토큰 연장 (새 토큰을 출력. Actions에선 gh secret set 으로 저장)
@@ -31,7 +32,10 @@ def log(stage: str, **kw):
 
 def _publish(post: store.Post, how: str) -> bool:
     try:
-        res = instagram.publish_carousel(post.urls, post.caption)
+        if post.meta.get("format") == "reel" and post.reel:
+            res = instagram.publish_reel(post.reel_url, post.caption, os.getenv("REEL_AUDIO_ID") or None)
+        else:
+            res = instagram.publish_carousel(post.urls, post.caption)
     except Exception as e:
         post.meta["status"] = "failed"
         post.meta["instagram"] = {"error": str(e)[:500], "attempts": post.meta.get("instagram", {}).get("attempts", 0) + 1}
@@ -120,6 +124,17 @@ def cmd_poll(args) -> None:
         if post.meta["status"] in ("published",):
             telegram.ack(cq, "이미 게시된 글이에요")
             continue
+        if decision.startswith("h"):  # 다른 훅으로 릴스·캡션을 다시 만들고 다시 승인 요청
+            telegram.ack(cq, f"{decision[1:]}번 훅으로 다시 만드는 중…")
+            try:
+                _rerender(post, int(decision[1:]) - 1)
+                post.meta["telegram"] = telegram.send_for_approval(post)
+                post.save()
+                log("poll", corp=post.meta["corp"], rcept_no=rcept, decision=decision, reel=post.meta.get("reel"))
+            except Exception as e:  # noqa: BLE001
+                log("poll", corp=post.meta["corp"], rcept_no=rcept, decision=decision, ok=False, error=str(e)[:300])
+                _safe_notify(f"⚠️ {post.meta['corp']} {decision[1:]}번 훅으로 다시 만들기 실패\n{str(e)[:300]}")
+            continue
         if decision == "no":
             post.meta["status"] = "rejected"
             post.save()
@@ -134,6 +149,27 @@ def cmd_poll(args) -> None:
     for post in store.all_posts("approved"):
         if post.meta.get("instagram", {}).get("attempts", 0) < 3:
             _publish(post, "retry")
+
+
+def _rerender(post: store.Post, idx: int) -> None:
+    """bundle.json의 idx번 훅으로 릴스와 캡션을 다시 만든다. 새 파일 이름(reel_N.mp4)으로 저장해 raw 주소 캐시를 피한다."""
+    from gongsi import cards
+    from gongsi.hook import Hook
+    from gongsi.models import IpoFacts, Summary
+    from gongsi.reel import make_reel
+
+    path = post.dir / "bundle.json"
+    b = json.loads(path.read_text(encoding="utf-8"))
+    hook = Hook(**b["hooks"][idx])
+    name = f"reel_{idx + 1}.mp4"
+    video = make_reel(hook.title, f"({b['line2']})" if b.get("line2") else "", hook.sub, hook.video, post.dir / name)
+    facts, summary = IpoFacts(**b["facts"]), Summary(**b["summary"])
+    cap = cards.caption(facts, post.rcept_no, summary, b.get("doc", "증권신고서"), hook, credit="📷 자료 화면: Pixabay")
+    (post.dir / "caption.txt").write_text(cap, encoding="utf-8")
+    b.update(chosen=idx, video=video)
+    path.write_text(json.dumps(b, ensure_ascii=False), encoding="utf-8")
+    post.meta.update(reel=name, status="pending")
+    post.save()
 
 
 def cmd_publish(args) -> None:

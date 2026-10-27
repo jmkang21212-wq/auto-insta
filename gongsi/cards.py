@@ -7,6 +7,7 @@ verbatim=True 텍스트(원문 인용)는 숫자 대조에서 뺀다.
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass, field
 from datetime import date
 
@@ -167,6 +168,7 @@ def build(facts: IpoFacts, summary: Summary, today: date | None = None, rcept_no
                 "why": GLOSSARY["checks"].get("refund", "청약 때 낸 증거금 중 배정받지 못한 돈은 이날 돌려받아요")})]
     checks = [c for c in checks if "미정" not in c["value"]]  # 값이 없는 항목은 싣지 않는다
     deposit_text(facts, derived)  # 캡션의 최소 증거금(만 원 단위·밴드 범위) 계산식을 검증용으로 남긴다
+    proceeds_shares(facts, derived)  # 캡션의 자금 용도 비중(%) 계산식
     c7 = Card(7, "checklist", f"청약 전, 이 {len(checks)}개만 확인하세요", data={"badge": badge, "checks": checks},
               role="checklist", lead="청약 전에 딱 몇 개만 확인해요 →") if checks else None
 
@@ -308,30 +310,40 @@ def nb(s: str) -> str:
 
 
 def wrap(text: str) -> list[str]:
-    """휴대폰 한 줄 폭에 맞게 어절 단위로 끊는다. ekke 캡션처럼 구 단위로 일부러 끊은 모양이 되게
-    조사·쉼표 뒤에서 끊는 쪽을 고르고, 그중 두 줄 폭이 비슷한 자리를 쓴다. 날짜 같은 묶음(NB)은 안 끊는다."""
-    out = lambda lines: [l.replace(NB, " ") for l in lines]  # noqa: E731
+    """휴대폰 한 줄 폭에 맞게 어절 단위로 끊는다. ekke 캡션처럼 구 단위로 일부러 끊은 모양이 되게,
+    가장 적은 줄 수 안에서 조사·쉼표 뒤에서 끊고 줄 폭이 고른 자리를 고른다. 날짜 같은 묶음(NB)은 안 끊는다."""
+    from itertools import combinations
+
+    out = lambda lines: [l.replace(NB, " ").strip() for l in lines]  # noqa: E731
+    text = re.sub(r"[ \t\n]+", " ", text).strip()  # 원문 인용의 겹친 공백 정리 (NB는 남긴다: str.split()은 NB도 자름)
     if line_width(text) <= CAPTION_LINE_MAX:
         return out([text])
     words = text.split(" ")
-    best = None
-    for i in range(1, len(words)):
-        a, b = " ".join(words[:i]), " ".join(words[i:])
-        if line_width(a) <= CAPTION_LINE_MAX and line_width(b) <= CAPTION_LINE_MAX:
-            score = max(line_width(a), line_width(b)) + (0 if words[i - 1].endswith(_GOOD_END) else 3)
-            if best is None or score < best[0]:
-                best = (score, [a, b])
-    if best:
-        return out(best[1])
-    lines, cur = [], ""
+    # 탐욕적으로 끊었을 때의 줄 수 = 필요한 최소 줄 수
+    greedy, cur = [], ""
     for w in words:
         cand = f"{cur} {w}".strip()
         if cur and line_width(cand) > CAPTION_LINE_MAX:
-            lines.append(cur)
+            greedy.append(cur)
             cur = w
         else:
             cur = cand
-    return out(lines + [cur])
+    greedy.append(cur)
+    k = len(greedy)
+    if k > 4 or len(words) > 40:
+        return out(greedy)
+    best = None
+    for cuts in combinations(range(1, len(words)), k - 1):
+        bounds = (0, *cuts, len(words))
+        lines = [" ".join(words[bounds[i]:bounds[i + 1]]) for i in range(k)]
+        widths = [line_width(l) for l in lines]
+        if max(widths) > CAPTION_LINE_MAX:
+            continue
+        bad = sum(0 if words[c - 1].endswith(_GOOD_END) else 1 for c in cuts)
+        score = max(widths) - min(widths) / 4 + 3 * bad
+        if best is None or score < best[0]:
+            best = (score, lines)
+    return out(best[1] if best else greedy)
 
 
 # 캡션 말투(fixtures/brand.json voice): ekke.now 계정을 참고한 음슴체 정리 노트.
@@ -348,68 +360,97 @@ EXPLAIN = {
 }
 
 
-def caption(facts: IpoFacts, rcept_no: str, summary: Summary | None = None, doc: str = "증권신고서",
-            hook=None) -> str:
-    """인스타 캡션. 카드(또는 릴스)는 훅, 자세한 내용은 캡션에서 (ekke.now 방식, 2026-10-27 사용자 제안).
+# 자금 용도 쉬운 풀이 (고정 문장, 음슴체). 신고서 용도 이름에 이 말이 들어가면 붙인다
+PROCEEDS_PLAIN = {"시설": "공장·장비 사는 데 쓰는 돈임", "운영": "월급·재료비처럼 사업 굴리는 데 바로 쓰는 돈임",
+                  "연구": "새 제품·기술 개발에 쓰는 돈임", "채무": "빌린 돈 갚는 데 쓰는 돈임",
+                  "타법인": "다른 회사 지분 사는 데 쓰는 돈임"}
 
-    2026-10-27 피드백을 거쳐 지금 모양이 됐다.
-    1) '말투가 AI 같고 줄바꿈이 제멋대로' → 휴대폰 한 줄 폭, 덩어리 사이 빈 줄 하나
-    2) '다른 글 참고' → 청약 증권사·최소 증거금 같은 청약 실무 숫자
-    3) '차분하다, 후킹하라, ekke 참고, 해석과 모를 만한 용어 설명을 넣어라' → 음슴체 정리 노트,
-       '-' 사실 / ':' 용어 풀이 / '→' 숫자가 뜻하는 것, 이모지 질문 소제목, 고정 문구로 마무리
-    지키는 선: 추천·확신·상승 암시 금지(verify.FORBIDDEN, 🚀📈 안 씀), 숫자는 전부 facts·derived에서,
-    구현 안 된 약속 금지, 해시태그 5개까지(2025.12~). 줄 규칙은 verify.check_caption_layout이 검사
+
+def proceeds_shares(facts: IpoFacts, derived: dict[str, str] | None = None) -> list[tuple[str, int]]:
+    """자금 용도 상위 3개와 비중(%) = 용도 금액 / 신고서에 적힌 용도 합계. derived를 주면 계산식을 남긴다"""
+    uses = sorted(facts.use_of_proceeds, key=lambda u: -u.amount_krw)
+    total = sum(u.amount_krw for u in uses)
+    out = []
+    for u in uses[:3] if total else []:
+        share = round(u.amount_krw / total * 100)
+        if share <= 0:
+            continue
+        if derived is not None:
+            derived[str(share)] = f"round({u.amount_krw:,} / 용도 합계 {total:,} * 100)"
+        out.append((u.purpose, share))
+    return out
+
+
+def _eun(word: str) -> str:
+    return "은" if _batchim(word) else "는"
+
+
+def caption(facts: IpoFacts, rcept_no: str, summary: Summary | None = None, doc: str = "증권신고서",
+            hook=None, credit: str = "") -> str:
+    """인스타 캡션. 릴스 화면은 훅만, 설명은 전부 캡션에서 (ekke.now 방식, 2026-10-27 사용자 결정).
+
+    순서: 훅(회사 개요 비유 + 신고서 용어 풀이) → 핵심 숫자 → 🏢 회사 → 💸 청약 실무 → 💰 모은 돈 용도
+          → ⚠️ 회사가 밝힌 위험 → 📊 다음 소식(수요예측 전) → 출처·자료 화면·면책 → 고정 문구 → 해시태그
+    표기: '-' 사실 / ':' 처음 보는 용어 풀이 / '→' 숫자가 뜻하는 것·비교. 음슴체.
+    지키는 선: 숫자는 전부 facts·derived(비교 숫자는 기사 출처가 있는 것만), 위험 문장은 check_risks가 원문과 대조,
+    추천·확신·상승 암시 금지, 구현 안 된 약속 금지, 해시태그 5개까지. 줄 규칙은 verify.check_caption_layout이 검사.
     """
+    from gongsi.benchmarks import refs as bench_refs
+
     corp = facts.corp_name
     has_band = bool(facts.band_low_krw and facts.band_high_krw)
     start = date.fromisoformat(facts.subscription_start) if facts.subscription_start else None
     days = nb(kdays(facts.subscription_start, facts.subscription_end)) if start else ""
     band = f"{facts.band_low_krw:,}~{facts.band_high_krw:,}원" if has_band else ""
     brokers = broker_text(facts)
+    post = facts.demand_ratio is not None
     blocks: list[list[str]] = []
 
     def item(sign: str, text: str) -> list[str]:
         return wrap(f"{sign} {text}")
 
-    # 1. 제목 + 핵심
+    def compare(metric: str) -> list[str]:
+        rows = bench_refs(metric, {})
+        if not rows:
+            return []
+        names = ", ".join(f"{r['name']} {r['label']}" for r in rows)
+        end = "이었음" if metric == "demand_ratio" else "였음"
+        return item("→", f"참고로 {names}{end}")
+
+    # 1. 훅 + 핵심 숫자
     first: list[str] = []
-    if facts.demand_ratio is not None:  # 수요예측 뒤
-        if hook:  # 훅(회사 개요 비유) → 신고서 용어 풀이 → 주인공 회사와 경쟁률
-            first += wrap(hook.headline()) + (wrap(hook.explain) if hook.explain else [])
-            first += item("-", f"주인공은 {corp}, 기관 경쟁률 {ratio(facts.demand_ratio)}")
-        else:
-            first.append(_fit(f"📢 {corp} 경쟁률 {ratio(facts.demand_ratio)} 나옴", f"📢 {corp} 수요예측 결과 나옴"))
-            first += item("-", f"기관 경쟁률 {ratio(facts.demand_ratio)}")
-        first += wrap(EXPLAIN["demand"].format(x=f"{facts.demand_ratio:,g}"))
+    if hook:
+        first += wrap(hook.headline()) + (wrap(hook.explain) if hook.explain else [])
+        first += item("-", f"주인공은 {corp}" + (f", {facts.market} 상장 예정" if facts.market else ""))
+    elif post:
+        first.append(_fit(f"📢 {corp} 경쟁률 {ratio(facts.demand_ratio)} 나옴", f"📢 {corp} 수요예측 결과 나옴"))
+    else:
+        when = f"{start.month}월 {start.day}일" if start else ""
+        ind = (facts.industry or "").strip()
+        first.append(_fit(f"🔔 {ind} {corp}, {when} 청약 열림" if ind and when else "",
+                          f"🔔 {corp}, {when} 청약 열림" if when else "", f"🔔 {corp} 공모주 청약 열림"))
+    if days:
+        first += item("-", f"청약은 {days}")
+    if post:
+        first += item("-", f"기관 경쟁률 {ratio(facts.demand_ratio)}")
+        first += wrap(EXPLAIN["demand"].format(x=f"{facts.demand_ratio:,g}")) + compare("demand_ratio")
         if facts.lockup_ratio_pct is not None:
             first += item("-", f"의무보유 확약은 {pct(facts.lockup_ratio_pct)}")
-            first += wrap(EXPLAIN["lockup"])
-            first += item("→", "나머지는 상장 첫날부터 팔 수 있음")
+            first += wrap(EXPLAIN["lockup"]) + item("→", "나머지는 상장 첫날부터 팔 수 있음") + compare("lockup_pct")
         if facts.final_price_krw:
             pos = band_pos(facts.final_price_krw, facts.band_low_krw, facts.band_high_krw)
             first += item("-", f"확정 공모가 {facts.final_price_krw:,}원" + (f", {pos}에서 정해짐" if pos else ""))
             if pos:
                 first += wrap(EXPLAIN["band"].format(band=band))
-    else:  # 수요예측 전
-        when = f"{start.month}월 {start.day}일" if start else ""
-        ind = (facts.industry or "").strip()
-        if hook:  # 훅(회사 개요 비유) → 신고서 용어 풀이 → 주인공 회사와 청약일
-            first += wrap(hook.headline()) + (wrap(hook.explain) if hook.explain else [])
-            if days:
-                first += item("-", f"주인공은 {corp}, {days} 청약")
-        else:
-            first.append(_fit(f"🔔 {ind} {corp}, {when} 청약 열림" if ind and when else "",
-                              f"🔔 {corp}, {when} 청약 열림" if when else "", f"🔔 {corp} 공모주 청약 열림"))
-            if days:
-                first += item("-", f"{facts.market + ' ' if facts.market else ''}상장 앞두고 {days} 일반 청약")
-        if facts.float_ratio_pct is not None:
-            first += item("-", f"상장일 유통 가능 물량은 {pct(facts.float_ratio_pct)}")
-            first += wrap(EXPLAIN["float"])
-            n = round(facts.float_ratio_pct / 10)
-            if n:
-                first += item("→", f"10주 중 약 {n}주꼴로 첫날 시장에 나올 수 있다는 얘기")
-        if has_band:
-            first += item("-", f"희망 공모가 {band}")
+    if facts.float_ratio_pct is not None:
+        first += item("-", f"상장일 유통 가능 물량은 {pct(facts.float_ratio_pct)}")
+        first += wrap(EXPLAIN["float"])
+        n = round(facts.float_ratio_pct / 10)
+        if n:
+            first += item("→", f"10주 중 약 {n}주꼴로 첫날 시장에 나올 수 있다는 얘기")
+        first += compare("float_pct")
+    if not post and has_band:
+        first += item("-", f"희망 공모가 {band}")
     blocks.append(first)
 
     # 2. 어떤 회사인지 (업종 + 신고서 실적)
@@ -422,7 +463,7 @@ def caption(facts: IpoFacts, rcept_no: str, summary: Summary | None = None, doc:
         oi = facts.operating_income_krw
         tail = (f", 영업이익 {won(oi)}" if oi > 0 else f", 영업손실 {won(-oi)}") if oi else ""
         who += item("-", f"{yr}매출 {won(facts.revenue_krw)}{tail}")
-    ind_in_title = bool(facts.industry) and first[0].startswith(f"🔔 {facts.industry.strip()} ")
+    ind_in_title = bool(facts.industry) and first[0].startswith(f"🔔 {(facts.industry or '').strip()} ")
     if who and not (ind_in_title and not facts.revenue_krw):  # 업종만 있고 이미 제목에 있으면 겹치니 생략
         blocks.append(["🏢 어떤 회사임?"] + who)
 
@@ -435,7 +476,7 @@ def caption(facts: IpoFacts, rcept_no: str, summary: Summary | None = None, doc:
             money += wrap(EXPLAIN["deposit_range"])
         money += wrap(EXPLAIN["equal"])
     if brokers:
-        money += item("-", f"청약은 {brokers}에서" + (f", {days}" if days and facts.demand_ratio is not None else ""))
+        money += item("-", f"청약은 {brokers}에서")
     if facts.refund_date:
         money += item("-", f"증거금 환불은 {nb(kdate(facts.refund_date))}")
     if facts.listing_date:
@@ -443,15 +484,40 @@ def caption(facts: IpoFacts, rcept_no: str, summary: Summary | None = None, doc:
     if len(money) > 1:
         blocks.append(money)
 
-    # 4. 수요예측 전: 경쟁률·확약은 언제 나오는지 (발행조건확정 공시가 나오면 2차 게시가 실제로 돈다)
-    if facts.demand_ratio is None:
+    # 4. 모은 돈은 어디에 (신고서 '자금의 사용목적')
+    shares = proceeds_shares(facts)
+    if shares:
+        use = ["💰 모은 돈은 어디에 씀?"]
+        use += item("-", ", ".join(f"{name} {share}%" for name, share in shares))
+        plain = next((v for k, v in PROCEEDS_PLAIN.items() if k in shares[0][0].replace(" ", "")), "")
+        if plain:
+            use += item("→", f"{shares[0][0]}{_eun(shares[0][0])} {plain}")
+        blocks.append(use)
+
+    # 5. 회사가 신고서에 직접 쓴 위험 (제목은 원문 그대로, 풀이는 쉬운 말 요약. 숫자는 check_risks가 원문과 대조)
+    risks = facts.risks[:2]
+    if risks:
+        lines = summary.risk_lines if summary and len(summary.risk_lines) == len(risks) else [[] for _ in risks]
+        warn = ["⚠️ 회사가 직접 밝힌 위험은?"]
+        for r, ls in zip(risks, lines):
+            if not (r.title or ls):
+                continue  # 소제목도 쉬운 말 요약도 없으면 원문을 중간에서 자르지 않고 뺀다
+            warn += item("-", r.title.strip()) if r.title else []
+            warn += wrap(f": {ls[0]}") if ls else []
+        if len(warn) > 1:
+            blocks.append(warn)
+
+    # 6. 수요예측 전: 경쟁률·확약은 언제 나오는지 (발행조건확정 공시가 나오면 2차 게시가 실제로 돈다)
+    if not post:
         nxt = ["📊 경쟁률·확약은 언제 나옴?"]
         if facts.forecast_end:
             nxt += item("-", f"수요예측이 {nb(kdate(facts.forecast_end))}까지라 그 뒤에 나옴")
+        if facts.final_price_date:
+            nxt += item("-", f"확정 공모가 공고는 {nb(kdate(facts.final_price_date))}")
         nxt += wrap(EXPLAIN["forecast"]) + item("→", "결과 나오면 경쟁률·확약 들고 다시 옴")
         blocks.append(nxt)
 
-    blocks.append([f"📄 DART {doc} {rcept_no}", "※ 투자 권유 아님, 판단은 각자 몫"])
+    blocks.append([f"📄 DART {doc} {rcept_no}", credit, "※ 투자 권유 아님, 판단은 각자 몫"])
     handle = BRAND.get("handle", "")
     blocks.append([f"🪄 청약 전에 볼 숫자, 제일 먼저 받아보기{' @' + handle if handle else ''}"])
     tags = ["#공모주", "#공모주청약", "#" + corp.replace(" ", ""), "#청약일정", BRAND.get("hashtag", "")]

@@ -14,7 +14,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from gongsi import cards  # noqa: E402
-from gongsi.models import IpoFacts  # noqa: E402
+from gongsi.models import IpoFacts, Summary  # noqa: E402
 from gongsi.verify import check_caption_layout, check_forbidden, check_numbers  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -35,13 +35,16 @@ def sample() -> IpoFacts:
 
 
 def body(cap: str) -> str:
-    return re.sub(r"\d{14}", "", cap)  # 접수번호는 공시 숫자가 아니라 출처 표기 (pipeline과 같게)
+    """숫자 대조 대상: 접수번호(출처 표기)와 위험 덩어리(원문 인용 + check_risks가 원문과 따로 대조)는 뺀다 (pipeline과 같게)"""
+    blocks = [b for b in cap.split("\n\n") if not b.startswith("⚠️")]
+    return re.sub(r"\d{14}", "", "\n\n".join(blocks))
 
 
 def assert_clean(cap: str, facts: IpoFacts) -> None:
     assert check_caption_layout(cap) == [], check_caption_layout(cap)
-    derived: dict[str, str] = {}
-    cards.deposit_text(facts, derived)  # pipeline과 같게: 계산값은 derived에 계산식이 있으면 통과
+    from datetime import date
+    # pipeline과 같게: 카드를 만들며 남긴 계산값·비교값(derived)은 계산식·출처가 있으면 통과
+    _, derived = cards.build(facts, Summary(business_lines=[], evidence=[]), date(2026, 10, 27), "x")
     bad = [p for p in check_numbers([body(cap)], facts) if not any(f"'{k}'" in p for k in derived)]
     assert bad == [], bad
     assert check_forbidden([body(cap)]) == []
@@ -57,7 +60,7 @@ def test_pre_forecast_real():
     cap = cards.caption(f, "20261023000331")
     assert_clean(cap, f)
     assert cap.split("\n")[0] == "🔔 동원파츠, 11월 2일 청약 열림"
-    for want in ("11월 2일(월)~3일(화) 일반 청약", "- 상장일 유통 가능 물량은 29.47%", ": 상장 첫날부터 팔 수 있는 주식 비율을 뜻함",
+    for want in ("- 청약은 11월 2일(월)~3일(화)", "- 상장일 유통 가능 물량은 29.47%", ": 상장 첫날부터 팔 수 있는 주식 비율을 뜻함",
                  "→ 10주 중 약 3주꼴로", "- 희망 공모가 23,000~26,500원", "💸 얼마 있어야 청약 가능?",
                  "- 최소 증거금 23만~26.5만원 (밴드 기준)", "- 청약은 삼성증권에서", "📊 경쟁률·확약은 언제 나옴?",
                  "→ 결과 나오면 경쟁률·확약 들고 다시 옴", "※ 투자 권유 아님", "🪄 청약 전에 볼 숫자"):
@@ -74,6 +77,23 @@ def test_post_forecast_sample():
                  "- 최소 증거금 21만원", "- 상장 예정일은 11월 12일(목)", "11월 3일(화)~4일(수)"):
         assert want in cap, want
     assert "결과 나오면" not in cap
+
+
+def test_full_explanations_proceeds_risks_compare_credit():
+    from gongsi.models import Risk, UseOfProceeds
+    f = IpoFacts(**{**DONGWON, "use_of_proceeds": [UseOfProceeds(purpose="시설자금", amount_krw=30000000000),
+                                                   UseOfProceeds(purpose="운영자금", amount_krw=10000000000)],
+                    "risks": [Risk(category="회사위험", title="성장성 및 수익성 악화 위험", quote="원문")]})
+    s = Summary(business_lines=[], evidence=[], risk_lines=[["업황이 나빠지면 매출이 줄 수 있음"]])
+    cap = cards.caption(f, "20261023000331", s, credit="📷 자료 화면: Pixabay")
+    assert_clean(cap, f)
+    flat = " ".join(cap.split())  # 휴대폰 폭에 맞춰 끊긴 줄을 이어서 본다
+    for want in ("💰 모은 돈은 어디에 씀? - 시설자금 75%, 운영자금 25%", "→ 시설자금은 공장·장비 사는 데 쓰는 돈임",
+                 "⚠️ 회사가 직접 밝힌 위험은? - 성장성 및 수익성 악화 위험 : 업황이 나빠지면 매출이 줄 수 있음",
+                 "→ 참고로 더본코리아 19.67%였음", "📷 자료 화면: Pixabay"):
+        assert want in flat, want
+    post = " ".join(cards.caption(sample(), "20261026999001").split())
+    assert "→ 참고로 LG CNS 114:1, HD현대마린솔루션 201:1이었음" in post  # 비교 숫자는 기사 출처가 있는 것만
 
 
 def test_long_names_and_text_wrap_inside_phone_width():
