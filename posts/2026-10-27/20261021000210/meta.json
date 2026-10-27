@@ -21,7 +21,19 @@
   "format": "reel",
   "audio_id": null,
   "published_at": "2026-10-27",
-  "by": "telegram"
+  "by": "telegram",
+  "deleted": "2026-10-28 사용자가 지움 (다시 게시 요청)"
  },
- "caption_note": "인스타에 올라간 캡션은 caption_published.txt(자이로스코프 정의 없는 첫 판). caption.txt는 보강판: 앱에서 캡션 수정 때 붙여 넣기용"
+ "caption_note": "인스타에 올라간 캡션은 caption_published.txt(자이로스코프 정의 없는 첫 판). caption.txt는 보강판: 앱에서 캡션 수정 때 붙여 넣기용",
+ "reel_v2": {
+  "file": "reel_v2.mp4",
+  "caption": "caption_v2.txt",
+  "instagram": {
+   "media_id": "18023555603941631",
+   "permalink": "https://www.instagram.com/reel/DfA5KSaoiG2/",
+   "container": "17890676370468914",
+   "published_at": "2026-10-28",
+   "by": "manual (사용자 요청: 다시 게시)"
+  }
+ }
 }

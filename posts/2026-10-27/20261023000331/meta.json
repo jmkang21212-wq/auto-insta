@@ -38,7 +38,19 @@
    "permalink": "https://www.instagram.com/reel/DfAEPi-tW5n/",
    "container": "17890604064468914",
    "published_at": "2026-10-27",
-   "by": "manual (사용자 요청)"
+   "by": "manual (사용자 요청)",
+   "deleted": "2026-10-28 사용자가 지움 (다시 게시 요청)"
+  }
+ },
+ "reel_v2": {
+  "file": "reel_v2.mp4",
+  "caption": "caption_v2.txt",
+  "instagram": {
+   "media_id": "18113243717125948",
+   "permalink": "https://www.instagram.com/reel/DfA5FcwuHwQ/",
+   "container": "17890676334468914",
+   "published_at": "2026-10-28",
+   "by": "manual (사용자 요청: 다시 게시)"
   }
  }
 }
