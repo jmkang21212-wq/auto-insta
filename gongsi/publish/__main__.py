@@ -186,8 +186,10 @@ def cmd_refresh(args) -> None:
 
 
 def cmd_chat_id(args) -> None:
+    bot = telegram.bot_info()
     chats = telegram.recent_chats()
-    log("chat-id", chats=chats, note=None if chats else "봇에게 먼저 아무 메시지나 보내 주세요")
+    log("chat-id", bot=f"@{bot.get('username')} ({bot.get('first_name')})", chats=chats,
+        note=None if chats else f"@{bot.get('username')} 대화방에서 '시작'을 누르고 아무 말이나 보낸 뒤 다시 실행하세요")
 
 
 def cmd_list(args) -> None:
