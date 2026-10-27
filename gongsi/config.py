@@ -25,6 +25,9 @@ class Settings:
     min_issues: int = 1
     standalone_ratio: float = 2.0  # 1위 점수가 2위의 2배 이상이면 단독 편
     lead_days: int = 7  # 공모주: 청약 시작이 이 날수 안에 들어오면 카드 생성 (그보다 멀면 다음 날 다시)
+    # 수요예측 결과(기관 경쟁률)가 나온 회사만 게시 (2026-10-28 결정: 경쟁률이 가장 궁금한 숫자라 결과 뒤 한 번만).
+    # POST_ONLY=0 이면 결과 전에도 게시(경쟁률 예고). 접수번호를 직접 준 실행(--rcept-no)은 이 설정과 상관없이 만든다
+    post_only: bool = os.getenv("POST_ONLY", "1") != "0"
 
     # 카드 규격 (인스타그램 캐러셀 세로 4:5)
     card_width: int = 1080

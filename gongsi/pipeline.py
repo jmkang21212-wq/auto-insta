@@ -32,6 +32,12 @@ def log(stage: str, **kw):
     print(json.dumps({"stage": stage, **kw}, ensure_ascii=False), flush=True)
 
 
+def has_final_terms(report_name: str | None) -> bool:
+    """수요예측 결과(경쟁률·확정 공모가)가 담기는 공시인가: [발행조건확정]증권신고서, 투자설명서(정정 포함)"""
+    name = report_name or ""
+    return "발행조건확정" in name or "투자설명서" in name
+
+
 def _tell(text: str) -> None:
     """Actions 실행에서 텔레그램이 설정돼 있으면 알림 (검증에서 걸려 그날 게시물이 안 나간 이유를 사용자가 알 수 있게).
     로컬 시험 실행은 알리지 않는다. 실패해도 파이프라인은 계속"""
@@ -89,8 +95,8 @@ def run(adapter: Adapter, date_from: str, date_to: str, only_rcept: str | None, 
                 if any(m.get("phase") == "post" for m in prev):
                     log("skip", corp=d.corp_name, reason="수요예측 결과까지 이미 게시 대기열에 있음")
                     continue
-                if any(m.get("phase") == "pre" for m in prev) and "발행조건확정" not in (d.report_name or ""):
-                    log("skip", corp=d.corp_name, reason="수요예측 전 게시물이 이미 있고, 이번 공시는 발행조건확정이 아님")
+                if any(m.get("phase") == "pre" for m in prev) and not has_final_terms(d.report_name):
+                    log("skip", corp=d.corp_name, reason="수요예측 전 게시물이 이미 있고, 이번 공시는 발행조건확정·투자설명서가 아님")
                     continue
 
             # 4. 추출
@@ -108,6 +114,9 @@ def run(adapter: Adapter, date_from: str, date_to: str, only_rcept: str | None, 
                     continue
                 if not facts.subscription_start:
                     log("skip", corp=d.corp_name, reason="청약일을 원문에서 못 읽음")
+                    continue
+                if settings.post_only and facts.demand_ratio is None:
+                    log("skip", corp=d.corp_name, reason=f"수요예측 결과(경쟁률) 전이라 건너뜀, 결과 공시가 나오면 게시 (청약 {facts.subscription_start})")
                     continue
             summary, how = summarize(facts)
             log("summary", corp=d.corp_name, summary_by=how, lines=summary.business_lines, risks=summary.risk_lines)

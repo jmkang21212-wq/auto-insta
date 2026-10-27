@@ -173,6 +173,15 @@ def test_business_line_in_company_block():
     assert cards.plain_business(Summary(business_lines=["부품을", "만들어요"], evidence=["a", "b"])) == ""
 
 
+def test_final_terms_filings_and_post_only_default():
+    """경쟁률이 담기는 공시만 결과 게시 대상으로 (투자설명서로 결과가 나오는 회사도 있음: 이에스티·래블업)"""
+    from gongsi.config import settings
+    from gongsi.pipeline import has_final_terms
+    assert has_final_terms("[발행조건확정]증권신고서(지분증권)") and has_final_terms("[기재정정]투자설명서")
+    assert not has_final_terms("[기재정정]증권신고서(지분증권)") and not has_final_terms(None)
+    assert settings.post_only  # 기본은 수요예측 결과 뒤에만 게시 (2026-10-28)
+
+
 def test_investment_doc_name():
     assert cards.doc_kind("[기재정정]투자설명서") == "투자설명서"
     assert cards.doc_kind("[발행조건확정]증권신고서(지분증권)") == "증권신고서"
