@@ -237,12 +237,23 @@ html,body{{margin:0;background:transparent}}
 .u{{margin-top:14px;color:#C9D1D9;font-size:42px;font-weight:700;letter-spacing:-.02em;line-height:1.15}}
 .sub{{position:absolute;top:{below - 112}px;left:0;width:{W}px;text-align:center;color:#fff;font-size:58px;font-weight:900;text-shadow:0 3px 14px #000,0 0 4px #000}}
 .tag{{position:absolute;top:{VIDEO_TOP + 24}px;left:72px;font-size:26px;font-weight:600;color:rgba(255,255,255,.85);background:rgba(0,0,0,.45);padding:6px 14px;border-radius:999px}}
-.s{{position:absolute;top:{below + 22}px;left:0;width:{W}px;text-align:center;color:#F5C84B;font-size:60px;font-weight:900;letter-spacing:-.02em;line-height:1.1}}
+.s{{position:absolute;top:{below + 22}px;left:0;width:{W}px;text-align:center;color:#F5C84B;font-size:60px;font-weight:900;letter-spacing:-.02em;line-height:1.1;white-space:nowrap}}
 .ar{{position:absolute;bottom:{H - SAFE_BOTTOM + 2}px;left:0;width:{W}px;text-align:center;color:#5EA9FF;font-size:44px;font-weight:800;line-height:1.1}}
 </style></head><body><div class=c>
 <div class=top><div class=wm><span class=b><span class=dot>ı<i></i></span>po</span>v</div><div class=t>{lines}</div>{use_html}</div>
 <div class=tag>자료 화면</div><div class=sub>{esc(sub)}</div>
-<div class=bot></div><div class=s>{esc(second)}</div><div class=ar>▼ 자세한 내용은 아래에 ▼</div></div></body></html>"""
+<div class=bot></div><div class=s><span class=si>{esc(second)}</span></div><div class=ar>▼ 자세한 내용은 아래에 ▼</div></div></body></html>"""
+
+
+# 영상 아래 줄이 길면('공모가 15,300원 → 주관사가 매긴 몸값 21,304원') 한 줄에 들어갈 때까지 글자를 줄인다 (60px → 최소 40px)
+_FIT_JS = """async (maxw) => {
+  await document.fonts.ready;
+  const el = document.querySelector('.s .si'); if (!el) return 0;
+  let size = 60;
+  while (el.getBoundingClientRect().width > maxw && size > 40) { size -= 1; el.parentElement.style.fontSize = size + 'px'; }
+  return size;
+}"""
+LINE2_MAX_W = W - 80  # 양옆 40px 여백
 
 
 def layout_boxes(title: str, second: str, sub: str, use: str = "") -> dict[str, tuple[float, float]]:
@@ -253,6 +264,7 @@ def layout_boxes(title: str, second: str, sub: str, use: str = "") -> dict[str, 
         b = p.chromium.launch()
         pg = b.new_page(viewport={"width": W, "height": H})
         pg.set_content(overlay_html(title, second, sub, use), wait_until="load")
+        pg.evaluate(_FIT_JS, LINE2_MAX_W)
         pg.wait_for_timeout(300)
         out = {}
         for name in ("wm", "t", "u", "s", "sub", "tag", "ar"):
@@ -260,6 +272,8 @@ def layout_boxes(title: str, second: str, sub: str, use: str = "") -> dict[str, 
                 continue
             bb = pg.locator(f".{name}").bounding_box()
             out[name] = (bb["y"], bb["y"] + bb["height"])
+        bb = pg.locator(".s .si").bounding_box()
+        out["s_x"] = (bb["x"], bb["x"] + bb["width"])  # 영상 아래 줄의 가로 범위 (화면 밖으로 안 나가는지)
         b.close()
     return out
 
@@ -272,6 +286,7 @@ def overlay_png(title: str, second: str, sub: str, out: Path, use: str = "") -> 
         b = p.chromium.launch()
         pg = b.new_page(viewport={"width": W, "height": H})
         pg.set_content(overlay_html(title, second, sub, use), wait_until="load")
+        pg.evaluate(_FIT_JS, LINE2_MAX_W)
         pg.wait_for_timeout(300)
         pg.screenshot(path=str(out), omit_background=True)
         b.close()

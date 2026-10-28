@@ -262,6 +262,10 @@ class DartAdapter(Adapter):
             risks=[Risk(category=c, title=t, quote=q) for c, t, q in merged.risks],
             business_evidence=merged.business_evidence, glossary=merged.glossary,
             customers=", ".join(merged.customers) or None, customer_note=merged.customer_note,
+            valuation_krw=merged.valuation_krw, valuation_discount_low_pct=merged.valuation_discount_low_pct,
+            valuation_discount_high_pct=merged.valuation_discount_high_pct, valuation_model=merged.valuation_model,
+            valuation_multiple=merged.valuation_multiple, valuation_basis=merged.valuation_basis,
+            valuation_basis_year=merged.valuation_basis_year,
             raw={"documents": read, "found": merged.found, "derived": merged.derived, "api_calls": self.calls},
         )
         # 청약이 끝났으면 증권발행실적보고서로 청약 결과·상장일을 채운다 (상장 앞두고 올리는 게시물용, 2026-10-28)

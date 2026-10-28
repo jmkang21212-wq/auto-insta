@@ -418,7 +418,33 @@ EXPLAIN = {
     "equal": ": 균등 배정은 최소 수량 이상 넣은 사람끼리 똑같이 나누는 방식임",
     "deposit_range": ": 공모가가 밴드 어디서 정해지느냐에 따라 달라짐",
     "forecast": ": 수요예측이란 기관들이 원하는 가격과 수량을 미리 써내는 절차임",
+    "underwriter": ": 주관사는 상장 절차를 맡아 공모가를 함께 정하는 증권사임",
 }
+
+# 주관사 평가모형 쉬운 풀이 (고정 문장, 음슴체). 신고서 '평가모형' 칸 값으로 고른다
+VALUATION_MODEL = {
+    "PER": "PER은 주가가 1년 순이익의 몇 배인지 보는 숫자임",
+    "EV/EBITDA": "EV/EBITDA는 빚까지 합친 회사 값이 1년 영업 현금이익의 몇 배인지 보는 숫자임",
+    "PSR": "PSR은 시가총액이 1년 매출의 몇 배인지 보는 숫자임",
+    "PBR": "PBR은 주가가 순자산의 몇 배인지 보는 숫자임",
+}
+
+
+def valuation_how(facts: IpoFacts) -> str:
+    """'2027년 예상 순이익을 바탕으로 비슷한 상장사들의 PER 19.48배를 적용해 계산함'. 기준을 못 읽으면 빈 문자열"""
+    b = facts.valuation_basis or ""
+    metric = "순이익" if "순이익" in b else "EBITDA" if "EBITDA" in b else "매출" if "매출" in b else ""
+    if not metric or not facts.valuation_model:
+        return ""
+    if "추정" in b and facts.valuation_basis_year:
+        base = f"{facts.valuation_basis_year}년 예상 {metric}"
+    elif "LTM" in b or "12개월" in b:
+        base = f"최근 12개월 {metric}"
+    else:
+        return ""
+    obj = "를" if metric == "EBITDA" else "을"
+    mult = f" {facts.valuation_multiple:g}배" if facts.valuation_multiple else ""
+    return f"{base}{obj} 바탕으로 비슷한 상장사들의 {facts.valuation_model}{mult}를 적용해 계산함"
 
 
 # 자금 용도 쉬운 풀이 (고정 문장, 음슴체). 신고서 용도 이름에 이 말이 들어가면 붙인다
@@ -544,6 +570,25 @@ def caption(facts: IpoFacts, rcept_no: str, summary: Summary | None = None, doc:
     if not post and has_band:
         first += item("-", f"희망 공모가 {band}")
     blocks.append(first)
+
+    # 1-1. 주관사가 매긴 몸값: 릴스 영상 아래 줄('공모가 → 주관사가 매긴 몸값')의 풀이 (2026-10-28).
+    #      신고서가 '상장 뒤 적정주가 아님'이라고 밝히는 값이라 그 문장을 꼭 같이 붙인다
+    if facts.valuation_krw:
+        uw = (facts.underwriters[0] if facts.underwriters else "").replace("㈜", "").replace("(주)", "").strip()
+        val = ["🧮 공모가는 어떻게 정했음?"]
+        val += item("-", f"주관사{f'({uw})' if uw else ''}가 매긴 몸값은 주당 {facts.valuation_krw:,}원")
+        val += wrap(EXPLAIN["underwriter"])
+        how = valuation_how(facts)
+        if how:
+            val += item("→", how)
+            model_expl = VALUATION_MODEL.get((facts.valuation_model or "").replace(" ", "").upper())
+            if model_expl:
+                val += wrap(f": {model_expl}")
+        if facts.valuation_discount_low_pct is not None and facts.valuation_discount_high_pct is not None and has_band:
+            val += item("-", f"여기서 {facts.valuation_discount_low_pct:g}~{facts.valuation_discount_high_pct:g}% 깎아 "
+                             f"희망 공모가 {band}을 정함")
+        val += item("→", "신고서는 이 값이 상장 뒤 적정주가는 아니라고 밝힘")
+        blocks.append(val)
 
     # 1-2. 청약 결과 (청약이 끝난 뒤): 일반 청약 경쟁률, 건수, 금액, 균등 배정
     if done:

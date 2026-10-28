@@ -75,6 +75,14 @@ class IpoFacts(BaseModel):
     revenue_mix: list[RevenueMix] = Field(default_factory=list)
     customers: str | None = None  # 주요 고객사 이름 쉼표로 (증권신고서 원문 그대로)
     customer_note: str | None = None  # 매출 비중 문장 (예: 매출의 75% 이상이 삼성디스플레이에서 나옴)
+    # 주관사가 매긴 몸값 (증권신고서 '인수인의 의견'). 신고서 스스로 '상장 뒤 적정주가 아님'이라고 밝히는 값
+    valuation_krw: int | None = None  # 주당 평가가액
+    valuation_discount_low_pct: float | None = None  # 평가액 대비 할인율 작은 쪽 (밴드 상단)
+    valuation_discount_high_pct: float | None = None  # 큰 쪽 (밴드 하단)
+    valuation_model: str | None = None  # PER, EV/EBITDA …
+    valuation_multiple: float | None = None  # 적용 배수
+    valuation_basis: str | None = None  # 적용 재무수치 원문
+    valuation_basis_year: int | None = None
     # 청약 결과 (증권발행실적보고서, 청약이 끝난 뒤에만): 일반투자자 배정·청약 수량, 건수, 금액, 균등 잔여 추첨 주식
     retail_alloc: int | None = None
     retail_qty: int | None = None

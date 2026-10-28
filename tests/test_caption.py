@@ -223,6 +223,73 @@ def test_investment_doc_name():
     assert "📄 DART 투자설명서 20261021000341" in cards.caption(sample(), "20261021000341", doc="투자설명서")
 
 
+
+def test_valuation_from_filing_tables():
+    """주관사가 매긴 몸값 (2026-10-28 '경쟁률 대신 공모가 → 주관사가 매긴 몸값'). 실제 원문 서식 4가지에서 줄을 그대로 옮김.
+    티앤이코리아 발행조건확정 신고서는 '정정 전/후' 짝으로 두 값이 다 있어서, 정정 전(21,291원)을 버리고 정정 후(21,304원)를 골라야 함"""
+    from gongsi.adapters.dart_doc import parse_valuation
+
+    tne = """(주21) 정정 전
+| 평가모형 | PER
+| 적용 재무수치 | 추정치 (2027년 추정 당기순이익)
+| ② | 유사기업 PER | 19.48배 | 1. 공모가격에 대한 의견
+| 주당 평가가액 | 21,291원 | ① x ② ÷③
+| ④ | 주당 평가가액에 대한할인율 | 40.82% ~ 28.14% | 1. 공모가격에 대한 의견
+(주21) 정정 후
+| 평가모형 | PER
+| 적용 재무수치 | 추정치 (2027년 추정 당기순이익)
+| ② | 유사기업 PER | 19.48배 | 1. 공모가격에 대한 의견
+| 주당 평가가액 | 21,304원 | ① x ② ÷③
+| ④ | 주당 평가가액에 대한할인율 | 40.86% ~ 28.18% | 1. 공모가격에 대한 의견
+(주24) 정정 전
+| 주당 평가가액 | 21,291원 | -
+| 평가액 대비 할인율 | 40.82%~28.14% | 주1)"""
+    v = parse_valuation(tne.split("\n"))
+    assert v["valuation_krw"] == 21304, v
+    assert (v["valuation_discount_low_pct"], v["valuation_discount_high_pct"]) == (28.18, 40.86), v
+    assert v["valuation_model"] == "PER" and v["valuation_multiple"] == 19.48 and v["valuation_basis_year"] == 2027, v
+
+    dongwon = """| ④ | 주당 평가가액에 대한 할인율 | % | 29.84% ~ 19.17% | IV. 인수인의 의견
+| 적용 PER | 22.91배 | B
+| 주당 평가가액 | 32,783원 | -"""
+    v = parse_valuation(dongwon.split("\n"))
+    assert (v["valuation_krw"], v["valuation_discount_low_pct"], v["valuation_discount_high_pct"], v["valuation_multiple"]) == (32783, 19.17, 29.84, 22.91), v
+
+    sfc = """| 평가모형 | EV/EBITDA
+| 적용 재무수치 | 실적치 (2026년 반기 기준 과거 12개월(LTM, 2025년 10월 ~ 2026년 9월) EBITDA)
+| 적용 EV/EBITDA 거래배수 | 13.39 배
+| 상대가치 주당 평가가액 | 46,210원 | -
+| 평가액 대비 할인율 | 31.62 % ~ 21.88 % | 주1)"""
+    v = parse_valuation(sfc.split("\n"))
+    assert (v["valuation_krw"], v["valuation_model"], v["valuation_multiple"]) == (46210, "EV/EBITDA", 13.39), v
+    assert (v["valuation_discount_low_pct"], v["valuation_discount_high_pct"]) == (21.88, 31.62), v
+
+    # 표가 없고 문장만 있을 때의 할인율
+    v = parse_valuation(["대표주관회사인 삼성증권㈜은 주당 평가가액을 기초로 하여 29.84% ~ 19.17%의 할인율을 적용하여"])
+    assert (v["valuation_discount_low_pct"], v["valuation_discount_high_pct"]) == (19.17, 29.84), v
+
+
+def test_valuation_line_and_caption_block():
+    """영상 아래 줄은 '공모가 → 주관사가 매긴 몸값', 캡션엔 계산 방법과 '적정주가 아님' 문장 (티앤이코리아 실제 값)"""
+    from gongsi.hook import line2
+
+    f = IpoFacts(corp_name="티앤이코리아", market="코스닥", band_low_krw=12600, band_high_krw=15300, final_price_krw=15300,
+                 demand_ratio=1041.02, underwriters=["신한투자증권"], valuation_krw=21304,
+                 valuation_discount_low_pct=28.18, valuation_discount_high_pct=40.86, valuation_model="PER",
+                 valuation_multiple=19.48, valuation_basis="추정치 (2027년 추정 당기순이익)", valuation_basis_year=2027)
+    assert line2(f) == "공모가 15,300원 → 주관사가 매긴 몸값 21,304원"
+    assert line2(f.model_copy(update={"final_price_krw": None})) == "공모가 12,600~15,300원 → 주관사 몸값 21,304원"
+    assert line2(f.model_copy(update={"valuation_krw": None})).startswith("기관 경쟁률")  # 몸값을 못 읽으면 예전처럼 경쟁률
+
+    cap = cards.caption(f, "20261016000158")
+    block = next(b for b in cap.split("\n\n") if b.startswith("🧮")).replace("\n", " ")  # 휴대폰 폭에 맞춰 접힌 줄은 펴서 본다
+    assert "주관사(신한투자증권)가 매긴 몸값은 주당 21,304원" in block, block
+    assert "2027년 예상 순이익을 바탕으로" in block and "PER 19.48배" in block, block
+    assert "28.18~40.86% 깎아" in block, block
+    assert "적정주가는 아니라고 밝힘" in block, block  # 신고서의 경고 문장은 빠지면 안 됨
+    assert not check_numbers([line2(f)], f), check_numbers([line2(f)], f)
+    assert_clean(cap, f)  # 캡션 전체: 숫자 대조(비교 숫자는 derived), 줄 규칙, 금지어
+
 if __name__ == "__main__":
     tests = [v for k, v in dict(globals()).items() if k.startswith("test_")]
     for t in tests:

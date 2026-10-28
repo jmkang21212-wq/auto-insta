@@ -159,6 +159,14 @@ class DocFacts:
     glossary: dict[str, str] = field(default_factory=dict)  # 신고서 '전문용어 해설' 표: 용어 → 뜻 (훅·캡션 풀이의 근거)
     customers: list[str] = field(default_factory=list)  # 주요 고객사 이름 (원문 그대로, 한글 우선)
     customer_note: str | None = None  # 매출 비중 문장 (원문 숫자 그대로)
+    # 주관사가 매긴 몸값: '인수인의 의견' 공모가 산정 표 (2026-10-28 '경쟁률 대신 공모가 → 주관사가 매긴 몸값')
+    valuation_krw: int | None = None  # 주당 평가가액
+    valuation_discount_low_pct: float | None = None  # 평가액 대비 할인율 (작은 쪽 = 밴드 상단)
+    valuation_discount_high_pct: float | None = None  # (큰 쪽 = 밴드 하단)
+    valuation_model: str | None = None  # 평가모형: PER, EV/EBITDA …
+    valuation_multiple: float | None = None  # 적용 배수 (유사기업 평균)
+    valuation_basis: str | None = None  # 적용 재무수치 원문: '추정치 (2027년 추정 당기순이익)'
+    valuation_basis_year: int | None = None
     derived: dict[str, str] = field(default_factory=dict)  # 계산값 → 공식
     found: dict[str, str] = field(default_factory=dict)  # 항목 → 어디서 찾았는지 (로그용)
 
@@ -253,10 +261,82 @@ def customers_from_text(t: str) -> tuple[list[str], str]:
     return names, note
 
 
+# ── 주관사가 매긴 몸값 (증권신고서 '인수인의 의견 - 공모가격에 대한 의견') ──
+# 표 서식이 회사마다 조금씩 다르다 (2026-10-28 동원파츠·옵토닉스·에스에프씨·티앤이코리아 원문 확인):
+#   | 주당 평가가액 | 21,304원 | ...            | 상대가치 주당 평가가액 | 14,615원
+#   | 평가액 대비 할인율 | 40.86%~28.18% |       | ④ | 주당 평가가액에 대한 할인율 | % | 29.84% ~ 19.17% | ...
+#   | 평가모형 | EV/EBITDA                       | 적용 재무수치 | 추정치 (2027년 추정 당기순이익)
+#   | 적용 PER | 19.48배 |                       | 적용 EV/EBITDA 거래배수 | 13.39 배
+# 발행조건확정 신고서는 고친 부분만 '(주21) 정정 전' / '(주21) 정정 후' 짝으로 싣는다. 정정 전 값은 버린다.
+_AMEND = re.compile(r"^(?:\(주\d+\)\s*)?[\[(<]?\s*정정\s*(전|후)\s*[\])>]?$")
+_VAL_CELL = re.compile(r"^(?:상대가치\s*)?주당\s*평가\s*가액$")
+_DISC_CELL = re.compile(r"평가액\s*대비\s*할인율|주당\s*평가\s*가액에\s*대한\s*할인율")
+_MULT_CELL = re.compile(r"^(?:적용|유사기업|유사회사)\s*(?:평균\s*)?(PER|EV/EBITDA|PSR|PBR)(?:\s*(?:거래)?배수)?$")
+_PCT_RANGE = re.compile(r"(\d{1,2}(?:\.\d+)?)\s*%\s*~\s*(\d{1,2}(?:\.\d+)?)\s*%")
+
+
+def _amend_flags(lines: list[str]) -> list[bool]:
+    """줄마다 정정표의 '정정 전' 쪽인지 (가장 가까운 위쪽 표시, 800줄 안). 한 번 훑어서 만든다"""
+    flags, state, at = [], None, -1
+    for i, ln in enumerate(lines):
+        m = _AMEND.match(ln.strip())
+        if m:
+            state, at = m.group(1), i
+        flags.append(state == "전" and i - at <= 800)
+    return flags
+
+
+def parse_valuation(lines: list[str]) -> dict:
+    """주당 평가가액·할인율·평가모형·적용 배수·적용 재무수치. 여러 번 나오면 정정 전이 아닌 마지막 값"""
+    out: dict = {}
+    before = _amend_flags(lines)
+    for i, ln in enumerate(lines):
+        if "|" not in ln or before[i]:
+            continue
+        c = _cells(ln)
+        for j, cell in enumerate(c):
+            rest = c[j + 1:j + 4]
+            if _VAL_CELL.match(cell):
+                for x in rest:
+                    m = re.fullmatch(r"([\d,]{4,})\s*원?", x)
+                    if m and (x.endswith("원") or "원" in rest):
+                        out["valuation_krw"] = _int(m.group(1))
+                        break
+            elif _DISC_CELL.search(cell):
+                m = _PCT_RANGE.search(" | ".join(c[j + 1:]))
+                if m:
+                    a, b = float(m.group(1)), float(m.group(2))
+                    out["valuation_discount_low_pct"], out["valuation_discount_high_pct"] = min(a, b), max(a, b)
+            elif cell == "평가모형" and rest and rest[0]:
+                out["valuation_model"] = rest[0]
+            elif cell.replace(" ", "") == "적용재무수치" and rest and rest[0]:
+                out["valuation_basis"] = rest[0]
+                y = re.search(r"(20\d{2})\s*년", rest[0])
+                out["valuation_basis_year"] = int(y.group(1)) if y else None
+            elif _MULT_CELL.match(cell):
+                for x in rest:
+                    m = re.fullmatch(r"(\d{1,3}(?:\.\d+)?)\s*(?:배|x|X)?", x)
+                    if m:
+                        out["valuation_multiple"] = float(m.group(1))
+                        break
+    if "valuation_discount_low_pct" not in out:  # 표가 없으면 문장: '주당 평가가액을 기초로 하여 29.84% ~ 19.17%의 할인율'
+        for i, ln in enumerate(lines):
+            m = re.search(r"평가가액을\s*기초로\s*하여\s*" + _PCT_RANGE.pattern, ln)
+            if m and not before[i]:
+                a, b = float(m.group(1)), float(m.group(2))
+                out["valuation_discount_low_pct"], out["valuation_discount_high_pct"] = min(a, b), max(a, b)
+    return out
+
+
 def parse(text: str) -> DocFacts:
     t = body_text(text)
     lines = t.split("\n")
     f = DocFacts()
+
+    for k, v in parse_valuation(lines).items():
+        setattr(f, k, v)
+    if f.valuation_krw:
+        f.found["valuation"] = f"{f.valuation_krw:,}원, 할인율 {f.valuation_discount_high_pct}~{f.valuation_discount_low_pct}%"
 
     # 시장
     if re.search(r"코스닥시장\s*(신규)?상장", t):

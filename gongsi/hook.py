@@ -291,11 +291,17 @@ def previous_hook(facts: IpoFacts) -> Hook | None:
 
 
 def line2(facts: IpoFacts) -> str:
-    """둘째 줄: 경쟁률 (2026-10-28 사용자 피드백: '얼마부터 청약 가능'보다 경쟁률이 더 궁금함).
+    """영상 아래 줄: 공모가 → 주관사가 매긴 몸값 (신고서에 평가가액이 있을 때). 없으면 경쟁률.
+    경쟁률 (2026-10-28 사용자 피드백: '얼마부터 청약 가능'보다 경쟁률이 더 궁금함).
     수요예측 뒤엔 기관 경쟁률 + 🔥(500:1 이상)/👀, 전엔 경쟁률이 언제 나오는지(신고서의 수요예측 마감일).
     청약 전에 나오는 건 기관 수요예측 경쟁률이라 '기관'을 붙인다 (일반 청약 경쟁률은 청약 당일 증권사가 발표)"""
     from gongsi.cards import ratio
 
+    # 2026-10-28 사용자 결정: 경쟁률 대신 '공모가 → 주관사가 매긴 몸값'을 원 단위로 (경쟁률은 캡션에 그대로)
+    if facts.valuation_krw and facts.final_price_krw:
+        return f"공모가 {facts.final_price_krw:,}원 → 주관사가 매긴 몸값 {facts.valuation_krw:,}원"
+    if facts.valuation_krw and facts.band_low_krw and facts.band_high_krw:  # 수요예측 전: 희망 공모가 범위
+        return f"공모가 {facts.band_low_krw:,}~{facts.band_high_krw:,}원 → 주관사 몸값 {facts.valuation_krw:,}원"
     if facts.demand_ratio is not None:
         return f"기관 경쟁률 {ratio(facts.demand_ratio)} {'🔥' if facts.demand_ratio >= HOT_RATIO else '👀'}"
     if facts.forecast_end:
