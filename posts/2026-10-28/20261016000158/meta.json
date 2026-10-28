@@ -3,7 +3,7 @@
  "rcept_no": "20261016000158",
  "date": "2026-10-28",
  "n": 0,
- "status": "pending",
+ "status": "published",
  "source_run": "manual",
  "format": "reel",
  "reel": "reel_v3.mp4",
@@ -25,5 +25,14 @@
   "message_id": 43,
   "chat_id": 8647980564,
   "format": "reel"
+ },
+ "instagram": {
+  "media_id": "17957949639271379",
+  "permalink": "https://www.instagram.com/reel/DfBSZl5BbHw/",
+  "container": "17890698756468914",
+  "format": "reel",
+  "audio_id": null,
+  "published_at": "2026-10-28",
+  "by": "telegram"
  }
 }
