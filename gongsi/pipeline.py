@@ -201,7 +201,7 @@ def run(adapter: Adapter, date_from: str, date_to: str, only_rcept: str | None, 
                 # 5. 검증
                 db.stage(run_id, "verify")
                 doc, src = source_doc(facts, d)  # 출처 줄: 투자설명서 접수번호면 투자설명서로, 상장 전날 편은 회사의 증권신고서
-                card_list, derived = cardmod.build(facts, summary, today, src, doc)
+                card_list, derived = cardmod.build(facts, summary, today, src, doc, phase=phase)
                 texts = [t for c in card_list for t in c.texts() if t and t not in c.verbatim]
                 allowed_derived = set(derived.keys())
                 problems = [p for p in check_numbers(texts, facts) if not any(f"'{k}'" in p for k in allowed_derived)]

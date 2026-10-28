@@ -18,7 +18,7 @@ from gongsi.verify import CAPTION_LINE_MAX, line_width
 
 GLOSSARY = json.loads((settings.fixtures_dir / "glossary.json").read_text(encoding="utf-8"))
 BRAND = json.loads((settings.fixtures_dir / "brand.json").read_text(encoding="utf-8"))
-TOTAL = 11  # 최대 장수(브랜드 홍보 장 포함). 실제 장수는 build() 결과 길이 (수요예측 전엔 경쟁률·확약 장이 빠져 9장)
+TOTAL = 12  # 최대 장수(브랜드 홍보 장 포함, 2026-10-29 몸값 장 추가). 실제 장수는 build() 결과 길이
 # 8장 분류 꼬리표: 신고서 용어(사업위험·회사위험·기타위험)를 풀어 쓴 고정 문구. 인용문 자체는 원문 그대로
 RISK_LABEL = {"사업위험": "업계 전체가 안고 있는 위험", "회사위험": "이 회사만의 위험", "기타위험": "그 밖에 알아둘 위험"}
 
@@ -117,7 +117,9 @@ def doc_kind(report_name: str | None) -> str:
 
 
 def build(facts: IpoFacts, summary: Summary, today: date | None = None, rcept_no: str = "",
-          doc: str = "증권신고서") -> tuple[list[Card], dict[str, str]]:
+          doc: str = "증권신고서", phase: str = "pre") -> tuple[list[Card], dict[str, str]]:
+    """카드뉴스. phase: pre(신고서 단계) = 전체 덱, post(경쟁률)·listing(상장 전날) = 새 숫자만 담은 짧은 덱
+    (2026-10-29 결정: 같은 회사의 거의 같은 11장이 세 번 올라가 프로필에서 반복돼 보여서)"""
     today = today or date.today()
     derived: dict[str, str] = {}
     # 청약 결과(증권발행실적보고서) 계산값의 출처
@@ -156,6 +158,27 @@ def build(facts: IpoFacts, summary: Summary, today: date | None = None, rcept_no
             (f", 영업이익은 {won(oi)}이에요" if oi > 0 else f", 영업손실은 {won(-oi)}이에요") if oi else "이에요")
     c2 = Card(2, "image", "\n".join(summary.business_lines), lines=[fin] if fin else [],
               data={"badge": badge}, role="about", lead="무슨 회사인지부터 볼게요 →")
+
+    # 2-1 주관사가 매긴 몸값 (릴스 영상 아래 '15,300원 → 21,304원'의 풀이, 2026-10-29). 신고서의 '적정주가 아님'을 같이
+    cv = None
+    price = facts.final_price_krw or facts.band_high_krw
+    if facts.valuation_krw and price:
+        rows = [{"name": "주관사 몸값", "value": float(facts.valuation_krw), "label": f"{facts.valuation_krw:,}원", "hero": True, "when": ""},
+                {"name": "확정 공모가" if facts.final_price_krw else "희망 공모가 상단", "value": float(price), "label": f"{price:,}원", "hero": False, "when": ""}]
+        if not facts.final_price_krw and facts.band_low_krw:
+            rows.append({"name": "희망 공모가 하단", "value": float(facts.band_low_krw), "label": f"{facts.band_low_krw:,}원", "hero": False, "when": ""})
+        top = max(r["value"] for r in rows) or 1
+        for r in rows:
+            r["w"] = max(2, round(r["value"] / top * 100))
+        how = []
+        if facts.valuation_model and facts.valuation_multiple:
+            how.append(f"비슷한 상장사의 {facts.valuation_model} {facts.valuation_multiple:g}배로 계산했어요")
+        if facts.valuation_discount_low_pct is not None and facts.valuation_discount_high_pct is not None:
+            how.append(f"여기서 {facts.valuation_discount_low_pct:g}~{facts.valuation_discount_high_pct:g}% 깎아 희망 공모가를 정했어요")
+        how.append("신고서는 이 값이 상장 뒤 적정주가는 아니라고 밝혀요")
+        cv = Card(3, "compare", f"{facts.valuation_krw:,}원", "주관사가 매긴 주당 몸값은", lines=how,
+                  data={"badge": badge, "legend": "주당 가격 비교", "compare": rows},
+                  role="valuation", lead="주관사는 얼마로 봤을까요? →")
 
     # 3 유통 가능 물량
     c3 = Card(3, "compare", pct(facts.float_ratio_pct), "상장하자마자 팔 수 있는 물량이",
@@ -260,7 +283,13 @@ def build(facts: IpoFacts, summary: Summary, today: date | None = None, rcept_no
     c11 = Card(11, "outro", BRAND["name"], data={"brand": BRAND}, role="outro")
 
     # 값이 없어 뺀 장을 제외하고 번호를 다시 매기고, 각 장의 "다음 →" 문구는 실제 다음 장의 lead로 잇는다
-    cards = [c for c in (c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11) if c is not None]
+    if phase == "post":  # 경쟁률 편: 표지 · 몸값 · 경쟁률 · 확약 · 일정 · 계정 소개
+        deck = (c1, cv, c4, c5, c9, c11)
+    elif phase == "listing":  # 상장 전날 편: 표지 · 몸값 · 첫날 유통 물량 · 경쟁률 · 일정 · 계정 소개
+        deck = (c1, cv, c3, c4, c9, c11)
+    else:
+        deck = (c1, c2, cv, c3, c4, c5, c6, c7, c8, c9, c10, c11)
+    cards = [c for c in deck if c is not None]
     for i, c in enumerate(cards, start=1):
         c.n = i
         c.tease = cards[i].lead if i < len(cards) else ""

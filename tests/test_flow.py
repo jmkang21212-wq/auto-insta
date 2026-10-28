@@ -131,6 +131,18 @@ def test_music_falls_back_to_silent_when_no_facebook_token():
     assert not instagram.fb_ready()
 
 
+
+def test_decks_full_first_then_short_with_valuation_card():
+    """2026-10-29: 첫 편(신고서 단계)만 전체 덱, 경쟁률·상장 전날 편은 짧은 덱. 몸값 장은 모든 덱에"""
+    from gongsi.models import Summary
+    f = IpoFacts(**{**TNE, "lockup_ratio_pct": 29.52})
+    s = Summary(business_lines=["터보블로워를 만듦", "수처리에 쓰임"], evidence=[])
+    roles = {ph: [c.role for c in cards.build(f, s, date(2026, 10, 28), "x", phase=ph)[0]] for ph in ("pre", "post", "listing")}
+    assert all("valuation" in r for r in roles.values()), roles
+    assert len(roles["pre"]) > len(roles["post"]) and roles["post"] == ["hero", "valuation", "demand", "lockup", "schedule", "outro"], roles
+    v = next(c for c in cards.build(f, s, date(2026, 10, 28), "x", phase="post")[0] if c.role == "valuation")
+    assert v.title == "21,304원" and any("적정주가는 아니라고" in l for l in v.lines)
+
 if __name__ == "__main__":
     tests = [v for k, v in dict(globals()).items() if k.startswith("test_")]
     for t in tests:
