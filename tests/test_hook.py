@@ -84,6 +84,15 @@ def test_fixed_term_explanation_when_filing_has_none():
     assert h.queries() == ["kid finger painting", "colorful paint splash"]
 
 
+def test_use_line_checked_against_business_text():
+    """썸네일 '쓰이는 곳'은 사업 원문 낱말만 (띄어쓰기는 무시)"""
+    from gongsi.hook import check_use
+    f = IpoFacts(corp_name="x", business_evidence=["국내외 AI데이터센터용 SOFC 수소발전 터보기계와 친환경 수소차용 터보기계, 친환경 오폐수 처리"])
+    assert check_use("오폐수 처리·AI 데이터센터·수소차에 쓰임", f) == []
+    assert any("우주선" in p for p in check_use("우주선·수소차에 쓰임", f))
+    assert check_use("", f) and any("숫자" in p for p in check_use("수소차 3종에 쓰임", f))
+
+
 def test_bad_hooks_rejected():
     no_source = Hook(title="반도체 '냉장고' 만드는 회사가 상장함", term="냉장고", emoji="🧊", sub="진짜 냉장고 아님", video="fridge door")
     assert any("근거 용어" in p for p in check_hook(no_source, FACTS))
@@ -129,10 +138,12 @@ def test_title_split_two_balanced_lines():
 
 
 def test_reel_text_inside_safe_zone():
-    """릴스 글자가 인스타 화면 위·아래 가림 영역 밖에 (2026-10-27 '아이폰에서 로고 윗부분이 가려짐' 피드백). 브라우저로 실제 배치를 잰다"""
-    bx = layout_boxes("비행기 '균형 감각' 만드는 회사가 상장함", "(경쟁률 1,134.5:1 🔥)", "비행기용 달팽이관")
-    assert bx["wm"][0] >= SAFE_TOP, bx  # 로고
+    """릴스 글자가 인스타 화면 위·아래 가림 영역 밖에 (2026-10-27 '아이폰에서 로고 윗부분이 가려짐', 2026-10-28 '어디에 쓰이는지 썸네일에').
+    브라우저로 실제 배치를 잰다. 프로필 격자는 가운데 3:4(y 240~1680)만 보여서 제목·쓰이는 곳·둘째 줄이 그 안에"""
+    bx = layout_boxes("비행기 '균형 감각' 만드는 회사가 상장함", "(기관 경쟁률 1,134.5:1 🔥)", "비행기용 달팽이관", "오폐수 처리·AI 데이터센터·수소차에 쓰임")
+    assert bx["t"][0] >= SAFE_TOP and bx["t"][1] < bx["u"][0] < bx["u"][1] < bx["s"][0], bx  # 제목 → 쓰이는 곳 → 경쟁률
     assert bx["s"][1] <= VIDEO_TOP - 20, bx  # 둘째 줄이 영상에 안 겹침
+    assert VIDEO_TOP <= bx["wm"][0] and bx["wm"][1] <= VIDEO_TOP + 100, bx  # 작은 로고는 영상 오른쪽 위
     assert VIDEO_TOP <= bx["sub"][0] and bx["sub"][1] <= VIDEO_TOP + VIDEO_H, bx  # 자막은 영상 안
     assert bx["ar"][1] <= SAFE_BOTTOM, bx  # '자세한 내용' 줄은 아이디·캡션 줄 위
 

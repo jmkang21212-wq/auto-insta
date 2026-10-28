@@ -29,7 +29,8 @@ W, H, SECONDS = 1080, 1920, 7
 # 2026-10-27 사용자 피드백 "아이폰에서 로고 윗부분이 가려짐"으로 로고를 84px → 270px로 내리고 영상 높이를 줄였다.
 # (14%는 업계 가이드에 흔히 쓰는 값이고 메타 공식 문서로는 확인 필요)
 SAFE_TOP, SAFE_BOTTOM = 270, 1440
-VIDEO_TOP, VIDEO_H = 660, 680  # 영상 자리. 그 아래 '자세한 내용' 줄까지 SAFE_BOTTOM 안
+VIDEO_TOP, VIDEO_H = 620, 720  # 영상 자리. 그 아래 '자세한 내용' 줄까지 SAFE_BOTTOM 안
+# 2026-10-28: 큰 로고는 빼고(사용자: '로고는 안 보여도 돼') 그 자리에 '어디에 쓰이는지' 한 줄. 작은 로고는 영상 오른쪽 위
 
 
 def used_ids() -> set[str]:
@@ -211,57 +212,63 @@ def split_title(text: str, max_w: float = 11.0) -> list[str]:
     return [" ".join(words[:best[1]]), " ".join(words[best[1]:])]
 
 
-def overlay_html(title: str, second: str, sub: str) -> str:
-    """영상 자리만 투명한 글자 판 HTML. 로고·제목·둘째 줄은 SAFE_TOP 아래, '자세한 내용' 줄은 SAFE_BOTTOM 위"""
+def overlay_html(title: str, second: str, sub: str, use: str = "") -> str:
+    """영상 자리만 투명한 글자 판 HTML. 제목·쓰이는 곳·둘째 줄은 SAFE_TOP 아래(프로필 격자에서도 보이게),
+    '자세한 내용' 줄은 SAFE_BOTTOM 위. 작은 ipov 로고는 영상 오른쪽 위"""
     from gongsi.render import font_css
 
     esc = lambda s: s.replace("&", "&amp;").replace("<", "&lt;")  # noqa: E731
     lines = "<br>".join(esc(x) for x in split_title(title))
+    use_html = f"<div class=u>📍 {esc(use)}</div>" if use else ""
     return f"""<html><head><meta charset=utf-8><style>{font_css()}
 html,body{{margin:0;background:transparent}}
 .c{{width:{W}px;height:{H}px;position:relative;font-family:'Pretendard','Noto Color Emoji'}}
 .top{{position:absolute;left:0;top:0;width:{W}px;height:{VIDEO_TOP}px;background:#0F1115;display:flex;flex-direction:column;align-items:center}}
 .bot{{position:absolute;left:0;top:{VIDEO_TOP + VIDEO_H}px;width:{W}px;height:{H - VIDEO_TOP - VIDEO_H}px;background:#0F1115}}
-.wm{{margin-top:{SAFE_TOP}px;font-size:64px;font-weight:900;letter-spacing:-.045em;color:#F2F4F6;line-height:1}}
+.t{{margin-top:{SAFE_TOP}px;text-align:center;color:#fff;font-size:76px;font-weight:900;line-height:1.16;letter-spacing:-.035em;word-break:keep-all}}
+.u{{margin-top:16px;color:#C9D1D9;font-size:42px;font-weight:700;letter-spacing:-.02em;line-height:1.15}}
+.s{{margin-top:12px;color:#F5C84B;font-size:56px;font-weight:800;letter-spacing:-.02em;line-height:1.1}}
+.wm{{position:absolute;top:{VIDEO_TOP + 20}px;right:72px;font-size:36px;font-weight:900;letter-spacing:-.045em;color:#F2F4F6;line-height:1;
+     text-shadow:0 2px 10px rgba(0,0,0,.6)}}
 .wm .b{{color:#5EA9FF}} .wm .dot{{position:relative;display:inline-block}}
 .wm .dot i{{position:absolute;left:50%;top:.02em;width:.2em;height:.2em;border-radius:50%;background:#F5C84B;transform:translateX(-50%)}}
-.t{{margin-top:30px;text-align:center;color:#fff;font-size:80px;font-weight:900;line-height:1.16;letter-spacing:-.035em;word-break:keep-all}}
-.s{{margin-top:14px;color:#F5C84B;font-size:56px;font-weight:800;letter-spacing:-.02em;line-height:1.1}}
 .sub{{position:absolute;top:{VIDEO_TOP + VIDEO_H - 112}px;left:0;width:{W}px;text-align:center;color:#fff;font-size:58px;font-weight:900;text-shadow:0 3px 14px #000,0 0 4px #000}}
 .tag{{position:absolute;top:{VIDEO_TOP + 24}px;left:72px;font-size:26px;font-weight:600;color:rgba(255,255,255,.85);background:rgba(0,0,0,.45);padding:6px 14px;border-radius:999px}}
 .ar{{position:absolute;top:{VIDEO_TOP + VIDEO_H + 34}px;left:0;width:{W}px;text-align:center;color:#5EA9FF;font-size:50px;font-weight:800;line-height:1.1}}
 </style></head><body><div class=c>
-<div class=top><div class=wm><span class=b><span class=dot>ı<i></i></span>po</span>v</div>
-<div class=t>{lines}</div><div class=s>{esc(second)}</div></div>
+<div class=top><div class=t>{lines}</div>{use_html}<div class=s>{esc(second)}</div></div>
+<div class=wm><span class=b><span class=dot>ı<i></i></span>po</span>v</div>
 <div class=tag>자료 화면</div><div class=sub>{esc(sub)}</div>
 <div class=bot></div><div class=ar>▼ 자세한 내용은 아래에 ▼</div></div></body></html>"""
 
 
-def layout_boxes(title: str, second: str, sub: str) -> dict[str, tuple[float, float]]:
+def layout_boxes(title: str, second: str, sub: str, use: str = "") -> dict[str, tuple[float, float]]:
     """글자 판 요소의 세로 위치 {이름: (위, 아래)}. 안전 영역 시험용"""
     from playwright.sync_api import sync_playwright
 
     with sync_playwright() as p:
         b = p.chromium.launch()
         pg = b.new_page(viewport={"width": W, "height": H})
-        pg.set_content(overlay_html(title, second, sub), wait_until="load")
+        pg.set_content(overlay_html(title, second, sub, use), wait_until="load")
         pg.wait_for_timeout(300)
         out = {}
-        for name in ("wm", "t", "s", "sub", "tag", "ar"):
+        for name in ("wm", "t", "u", "s", "sub", "tag", "ar"):
+            if name == "u" and not use:
+                continue
             bb = pg.locator(f".{name}").bounding_box()
             out[name] = (bb["y"], bb["y"] + bb["height"])
         b.close()
     return out
 
 
-def overlay_png(title: str, second: str, sub: str, out: Path) -> Path:
+def overlay_png(title: str, second: str, sub: str, out: Path, use: str = "") -> Path:
     """영상 자리만 투명한 글자 판"""
     from playwright.sync_api import sync_playwright
 
     with sync_playwright() as p:
         b = p.chromium.launch()
         pg = b.new_page(viewport={"width": W, "height": H})
-        pg.set_content(overlay_html(title, second, sub), wait_until="load")
+        pg.set_content(overlay_html(title, second, sub, use), wait_until="load")
         pg.wait_for_timeout(300)
         pg.screenshot(path=str(out), omit_background=True)
         b.close()
@@ -287,7 +294,7 @@ def thing_of(title: str) -> str:
     return m.group(1) if m else ""
 
 
-def make_reel(title: str, second: str, sub: str, query: str, out: Path, thing: str | None = None) -> dict:
+def make_reel(title: str, second: str, sub: str, query: str, out: Path, thing: str | None = None, use: str = "") -> dict:
     """훅 릴스 한 편. 돌려주는 meta(영상 id·출처)는 캡션 '📷 자료 화면' 줄, 로그, 게시 대기열의 사용 기록용"""
     found = find_video(query, skip=used_ids() | _RUN_USED, thing=thing_of(title) if thing is None else thing)
     if not found:
@@ -295,7 +302,7 @@ def make_reel(title: str, second: str, sub: str, query: str, out: Path, thing: s
     video, meta = found
     meta["start"] = lead_in(video)
     with tempfile.TemporaryDirectory() as tmp:
-        compose(video, overlay_png(title, second, sub, Path(tmp) / "overlay.png"), out, start=meta["start"])
+        compose(video, overlay_png(title, second, sub, Path(tmp) / "overlay.png", use), out, start=meta["start"])
     _RUN_USED.add(meta["id"])
     return meta
 

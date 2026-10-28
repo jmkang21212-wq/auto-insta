@@ -151,7 +151,7 @@ def run(adapter: Adapter, date_from: str, date_to: str, only_rcept: str | None, 
                     try:
                         # 첫 검색어는 비유 물건이 화면 주인공인지, 대체 검색어(흔한 장면)는 그 장면이 보이는지 비전이 확인
                         reel_meta = make_reel(h.title, f"({second})" if second else "", h.sub, q, out / f"{d.rcept_no}_reel.mp4",
-                                              thing=None if q == h.video else "")
+                                              thing=None if q == h.video else "", use=h.use)
                         hook, chosen = h, i
                         break
                     except Exception as e:  # noqa: BLE001

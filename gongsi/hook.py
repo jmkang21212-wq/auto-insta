@@ -40,7 +40,10 @@ PROMPT = """너는 인스타 경제 계정 ekke.now 같은 말투로 공모주 �
    (예: 샤워기 → 'dog shower bath', 균형 감각 → 'tightrope walker balancing'). 가만히 있는 풍경·제품 사진 같은 장면 금지, 브랜드 로고가 안 나올 만한 것.
 8. videos: 7번 검색어 3개를 구체적인 장면 → 더 흔한 장면 순서로 (무료 스톡 영상 사이트에 있을 만한 것. 셋째는 아주 흔한 장면,
    예: ["kid finger painting", "colorful paint splash", "ink in water"]). video에는 그중 첫째를 적는다.
-9. 후보 3개, 서로 다른 제품이나 각도로. JSON만: {"hooks":[{"title":"","term":"","emoji":"","sub":"","video":"","videos":["","",""]}]}
+9. 후보 3개, 서로 다른 제품이나 각도로.
+10. use: 이 회사 제품이 실제로 어디에 쓰이는지 한 줄 (썸네일에 들어감). 예: "반도체 장비에 들어감", "AI 데이터센터·수소차에 쓰임".
+   사업 원문에 나온 용도·고객 산업 낱말만, 18자 이내, 숫자·과장 금지. 회사마다 하나.
+JSON만: {"use":"","hooks":[{"title":"","term":"","emoji":"","sub":"","video":"","videos":["","",""]}]}
 
 회사: {corp} / 업종: {industry}
 사업 원문:
@@ -59,6 +62,7 @@ class Hook:
     video: str  # 스톡 영상 검색어 (영어)
     explain: str = ""  # 캡션 ':' 줄. 신고서 용어 해설 그대로
     alt_videos: list[str] = field(default_factory=list)  # video로 못 찾으면 차례로 (구체적 → 흔한 장면)
+    use: str = ""  # 썸네일 '📍 어디에 쓰이는지' 한 줄 (회사마다 같음, 사업 원문 낱말만)
 
     def queries(self) -> list[str]:
         return [q for q in dict.fromkeys([self.video, *self.alt_videos]) if q]
@@ -192,6 +196,23 @@ def explain_line(term: str, glossary: dict[str, str], al: dict[str, set[str]] | 
     return (": " + ". ".join(parts)) if parts else ""
 
 
+_USE_END = re.compile(r"\s*(?:에서|에|으로|로)?\s*(?:쓰임|들어감|사용됨|씀|공급됨|납품됨)$")
+
+
+def check_use(use: str, facts: IpoFacts) -> list[str]:
+    """썸네일 '쓰이는 곳' 줄 검사: 낱말마다 신고서 사업 원문·용어 해설에 있어야 함 (띄어쓰기 무시), 숫자·금지어 없음, 한 줄 폭 안"""
+    if not use:
+        return ["쓰이는 곳이 비어 있음"]
+    src = re.sub(r"\s", "", " ".join(facts.business_evidence) + " " + " ".join(f"{k} {v}" for k, v in facts.glossary.items()))
+    words = [w for w in re.split(r"[\s·,/]+", _USE_END.sub("", use)) if w]
+    problems = [f"쓰이는 곳 낱말 '{w}'가 사업 원문에 없음" for w in words if re.sub(r"\s", "", w) not in src]
+    if re.search(r"\d", use):
+        problems.append(f"쓰이는 곳에 숫자: {use}")
+    if line_width(use) > 20:
+        problems.append(f"쓰이는 곳이 너무 김({line_width(use):.1f}): {use}")
+    return problems + check_forbidden([use])
+
+
 def check_hook(h: Hook, facts: IpoFacts) -> list[str]:
     """근거·말투 검사. 문제가 없으면 빈 목록"""
     problems = []
@@ -229,10 +250,14 @@ def make_hooks(facts: IpoFacts) -> list[Hook]:
     data = json.loads(text[text.find("{"): text.rfind("}") + 1])
     hooks, rank = [], {}
     al = aliases(facts.business_evidence)
+    use = str(data.get("use", "")).strip()
+    if check_use(use, facts):
+        use = ""  # 원문에 없는 낱말이 있으면 쓰이는 곳 줄은 빼고 간다
     for raw in data.get("hooks", [])[:3]:
         h = Hook(**{k: str(raw.get(k, "")).strip() for k in ("title", "term", "emoji", "sub", "video")})
         alts = [str(q).strip() for q in (raw.get("videos") or []) if isinstance(q, str)]
         h.alt_videos = [q for q in alts if q != h.video and re.fullmatch(r"[A-Za-z][A-Za-z \-]{2,40}", q)][:3]
+        h.use = use
         if not check_hook(h, facts):
             h.explain = explain_line(h.term, facts.glossary, al, h.title, facts.business_evidence)
             rank[id(h)] = 0 if explain_parts(h.term, facts.glossary, al, h.title, facts.business_evidence)[1] else 1 if h.explain else 2
@@ -257,7 +282,7 @@ def previous_hook(facts: IpoFacts) -> Hook | None:
         if not b.get("hooks"):
             continue
         raw = b["hooks"][min(int(b.get("chosen") or 0), len(b["hooks"]) - 1)]
-        h = Hook(**{k: str(raw.get(k, "")) for k in ("title", "term", "emoji", "sub", "video")})
+        h = Hook(**{k: str(raw.get(k, "")) for k in ("title", "term", "emoji", "sub", "video", "use")})
         if check_hook(h, facts):
             return None
         h.explain = explain_line(h.term, facts.glossary, aliases(facts.business_evidence), h.title, facts.business_evidence)
