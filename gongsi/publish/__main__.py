@@ -126,14 +126,18 @@ def cmd_notify(args) -> None:
         if auto:
             _publish(post, "auto")
             continue
-        if post.meta.get("telegram"):
-            continue
+        if post.meta.get("telegram") or post.meta.get("telegram_failures", 0) >= 2:
+            continue  # 두 번 실패하면 멈춤: 카드 묶음만 가고 영상에서 실패하면 감시가 1분마다 같은 사진을 또 보내게 되므로
         try:
             post.meta["telegram"] = telegram.send_for_approval(post)
             post.save()
             log("notify", corp=post.meta["corp"], rcept_no=post.rcept_no, ok=True)
         except Exception as e:
+            post.meta["telegram_failures"] = post.meta.get("telegram_failures", 0) + 1
+            post.save()
             log("notify", corp=post.meta["corp"], rcept_no=post.rcept_no, ok=False, error=str(e)[:300])
+            if post.meta["telegram_failures"] >= 2:
+                _safe_notify(f"⚠️ {post.meta['corp']} 승인 요청을 두 번 못 보냈어요\n{str(e)[:200]}")
 
 
 def cmd_poll(args) -> None:
