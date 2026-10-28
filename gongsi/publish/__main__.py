@@ -315,6 +315,8 @@ def cmd_check(args) -> None:
         log("check", instagram="IG_ACCESS_TOKEN 없음")
     if instagram.fb_ready():  # 릴스 음악: 페이스북 로그인 토큰 → 연결된 인스타 계정 → 음악 목록 (2026-10-28)
         try:
+            pages = instagram.fb_pages()
+            log("check", fb_pages=[{"name": p.get("name"), "ig": (p.get("instagram_business_account") or {}).get("username")} for p in pages])
             ig = instagram.fb_ig_user_id()
             track = instagram.pick_music()
             log("check", music="ok", ig_fb_user_id=ig, sample=f"{track.get('title')} - {track.get('display_artist')}")

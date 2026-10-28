@@ -155,10 +155,24 @@ def fb_ig_user_id() -> str:
         accts = [p["instagram_business_account"] for p in pages if p.get("instagram_business_account")]
         want = os.getenv("IG_USERNAME", "ipo_view")
         pick = next((a for a in accts if a.get("username") == want), accts[0] if accts else None)
-        if not pick:
-            raise RuntimeError("토큰의 페이스북 페이지에 연결된 인스타 계정이 없음 (인스타 설정에서 페이지 연결 필요)")
-        _FB_IG_ID = str(pick["id"])
+        if pick:
+            _FB_IG_ID = str(pick["id"])
+        else:
+            # 페이지 목록에서 못 찾으면 Instagram 로그인 쪽 user_id(같은 1784… 번호)로 시도 (2026-10-28 확인 실행에서 목록이 빔)
+            try:
+                _FB_IG_ID = str(whoami().get("user_id") or "")
+            except Exception:  # noqa: BLE001
+                _FB_IG_ID = ""
+            if not _FB_IG_ID:
+                names = [p.get("name") for p in pages]
+                raise RuntimeError(f"토큰으로 보이는 페이지 {len(pages)}개 {names} 중 인스타가 연결된 곳이 없음")
     return _FB_IG_ID
+
+
+def fb_pages() -> list[dict]:
+    """확인용: 토큰으로 보이는 페이지와 연결된 인스타"""
+    return _fb("GET", "me/accounts", fields="name,instagram_business_account{id,username}").get("data", [])
+
 
 
 def _used_audio_path():
