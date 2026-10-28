@@ -313,6 +313,17 @@ def cmd_check(args) -> None:
             log("check", instagram_error=str(e)[:300])
     else:
         log("check", instagram="IG_ACCESS_TOKEN 없음")
+    if instagram.fb_ready():  # 릴스 음악: 페이스북 로그인 토큰 → 연결된 인스타 계정 → 음악 목록 (2026-10-28)
+        try:
+            ig = instagram.fb_ig_user_id()
+            track = instagram.pick_music()
+            log("check", music="ok", ig_fb_user_id=ig, sample=f"{track.get('title')} - {track.get('display_artist')}")
+            _safe_notify(f"🎵 음악 연결 확인 ✅ 예: {track.get('title')} - {track.get('display_artist')}")
+        except Exception as e:
+            log("check", music_error=str(e)[:300])
+            _safe_notify(f"⚠️ 음악 연결 확인 실패\n{str(e)[:300]}")
+    else:
+        log("check", music="FB_USER_TOKEN 없음")
     if os.getenv("TELEGRAM_BOT_TOKEN"):
         try:
             log("check", telegram_bot=telegram.bot_info().get("username"))
