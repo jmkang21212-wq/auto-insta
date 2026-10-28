@@ -214,7 +214,8 @@ def split_title(text: str, max_w: float = 11.0) -> list[str]:
 
 def overlay_html(title: str, second: str, sub: str, use: str = "") -> str:
     """영상 자리만 투명한 글자 판 HTML. 위: 로고·제목·'📍 쓰이는 곳'(SAFE_TOP 아래, 프로필 격자에서도 보이게),
-    영상 아래: 둘째 줄(경쟁률)과 '자세한 내용' 줄(SAFE_BOTTOM 위). 둘째 줄의 괄호는 떼고 크게"""
+    영상 아래: 둘째 줄(경쟁률)과 '자세한 내용' 줄. 둘째 줄의 괄호는 떼고 크게.
+    '자세한 내용' 줄은 SAFE_BOTTOM 바로 위에 붙여 경쟁률 줄과 띄운다 (2026-10-28 '경쟁률 문구랑 간격을 좀 띄워줘')"""
     from gongsi.render import font_css
 
     esc = lambda s: s.replace("&", "&amp;").replace("<", "&lt;")  # noqa: E731
@@ -237,7 +238,7 @@ html,body{{margin:0;background:transparent}}
 .sub{{position:absolute;top:{below - 112}px;left:0;width:{W}px;text-align:center;color:#fff;font-size:58px;font-weight:900;text-shadow:0 3px 14px #000,0 0 4px #000}}
 .tag{{position:absolute;top:{VIDEO_TOP + 24}px;left:72px;font-size:26px;font-weight:600;color:rgba(255,255,255,.85);background:rgba(0,0,0,.45);padding:6px 14px;border-radius:999px}}
 .s{{position:absolute;top:{below + 22}px;left:0;width:{W}px;text-align:center;color:#F5C84B;font-size:60px;font-weight:900;letter-spacing:-.02em;line-height:1.1}}
-.ar{{position:absolute;top:{below + 98}px;left:0;width:{W}px;text-align:center;color:#5EA9FF;font-size:44px;font-weight:800;line-height:1.1}}
+.ar{{position:absolute;bottom:{H - SAFE_BOTTOM + 2}px;left:0;width:{W}px;text-align:center;color:#5EA9FF;font-size:44px;font-weight:800;line-height:1.1}}
 </style></head><body><div class=c>
 <div class=top><div class=wm><span class=b><span class=dot>ı<i></i></span>po</span>v</div><div class=t>{lines}</div>{use_html}</div>
 <div class=tag>자료 화면</div><div class=sub>{esc(sub)}</div>

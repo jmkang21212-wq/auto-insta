@@ -146,6 +146,7 @@ def test_reel_text_inside_safe_zone():
     assert bx["u"][1] <= VIDEO_TOP - 10, bx  # 쓰이는 곳이 영상에 안 겹침
     assert VIDEO_TOP <= bx["sub"][0] and bx["sub"][1] <= VIDEO_TOP + VIDEO_H, bx  # 자막은 영상 안
     assert VIDEO_TOP + VIDEO_H < bx["s"][0] < bx["s"][1] < bx["ar"][0], bx  # 경쟁률은 영상 아래, 그 아래 '자세한 내용'
+    assert bx["ar"][0] - bx["s"][1] >= 28, bx  # 2026-10-28 '경쟁률 문구랑 간격을 좀 띄워줘' (전에는 10px)
     assert bx["ar"][1] <= SAFE_BOTTOM, bx  # 아이디·캡션 줄 위
 
 
