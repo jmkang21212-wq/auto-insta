@@ -6,12 +6,12 @@
  "status": "pending",
  "source_run": "manual",
  "format": "reel",
- "reel": "reel.mp4",
+ "reel": "reel_v2.mp4",
  "phase": "listing",
  "subscription_start": "2026-10-20",
  "listing_date": "2026-10-29",
  "note": "사용자 요청(2026-10-28): 내일 상장 티앤이코리아 자료 확인 → 상장 앞 릴스",
- "telegram": {
+ "telegram_old": {
   "message_id": 37,
   "chat_id": 8647980564,
   "format": "reel"

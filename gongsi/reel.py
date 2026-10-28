@@ -228,8 +228,8 @@ html,body{{margin:0;background:transparent}}
 .t{{margin-top:{SAFE_TOP}px;text-align:center;color:#fff;font-size:76px;font-weight:900;line-height:1.16;letter-spacing:-.035em;word-break:keep-all}}
 .u{{margin-top:16px;color:#C9D1D9;font-size:42px;font-weight:700;letter-spacing:-.02em;line-height:1.15}}
 .s{{margin-top:12px;color:#F5C84B;font-size:56px;font-weight:800;letter-spacing:-.02em;line-height:1.1}}
-.wm{{position:absolute;top:{VIDEO_TOP + 20}px;right:72px;font-size:36px;font-weight:900;letter-spacing:-.045em;color:#F2F4F6;line-height:1;
-     text-shadow:0 2px 10px rgba(0,0,0,.6)}}
+.wm{{position:absolute;top:{VIDEO_TOP + 20}px;right:72px;font-size:32px;font-weight:900;letter-spacing:-.045em;color:#F2F4F6;line-height:1;
+     background:rgba(15,17,21,.6);padding:8px 16px 6px;border-radius:999px}}
 .wm .b{{color:#5EA9FF}} .wm .dot{{position:relative;display:inline-block}}
 .wm .dot i{{position:absolute;left:50%;top:.02em;width:.2em;height:.2em;border-radius:50%;background:#F5C84B;transform:translateX(-50%)}}
 .sub{{position:absolute;top:{VIDEO_TOP + VIDEO_H - 112}px;left:0;width:{W}px;text-align:center;color:#fff;font-size:58px;font-weight:900;text-shadow:0 3px 14px #000,0 0 4px #000}}
