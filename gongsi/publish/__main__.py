@@ -82,7 +82,52 @@ def _safe_notify(text: str) -> None:
             log("telegram", ok=False, error=str(e)[:200])
 
 
+def _token_alerts() -> None:
+    """관리: 음악용 페이스북 토큰이 무효거나 7일 안에 만료되면 하루 한 번 텔레그램 알림 (2026-10-28).
+    생성 실행(매일 아침)의 stage 단계에서 부른다. 실패해도 게시 흐름엔 영향 없음"""
+    if not instagram.fb_ready():
+        return
+    f = store.ROOT / "state" / "token_alert.json"
+    today = date.today().isoformat()
+    try:
+        if f.exists() and json.loads(f.read_text(encoding="utf-8")).get("date") == today:
+            return
+        info = instagram.fb_token_info()
+        log("token", fb=info)
+        msg = None
+        if not info["is_valid"]:
+            msg = "⚠️ 음악용 페이스북 토큰이 무효예요 (로그아웃·비밀번호 변경 때 생김). 다시 받아 FB_USER_TOKEN을 바꿔 주세요. 그동안 릴스는 소리 없이 올라가요"
+        elif info["days_left"] is not None and info["days_left"] <= 7:
+            msg = f"⏰ 음악용 페이스북 토큰이 {info['days_left']:g}일 뒤 만료돼요. 그래프 API 탐색기에서 다시 받아 FB_USER_TOKEN을 바꿔 주세요"
+        if msg:
+            _safe_notify(msg)
+            f.parent.mkdir(parents=True, exist_ok=True)
+            f.write_text(json.dumps({"date": today}), encoding="utf-8")
+    except Exception as e:  # noqa: BLE001
+        log("token", ok=False, error=str(e)[:200])
+        if "190" in str(e):  # 토큰 오류 코드
+            _safe_notify(f"⚠️ 음악용 페이스북 토큰 확인 실패\n{str(e)[:200]}")
+            f.parent.mkdir(parents=True, exist_ok=True)
+            f.write_text(json.dumps({"date": today}), encoding="utf-8")
+
+
+def _sec_check() -> None:
+    """미국 공모주용: SEC_USER_AGENT(회사·연락 이메일)로 EDGAR가 열리는지"""
+    ua = os.getenv("SEC_USER_AGENT")
+    if not ua:
+        log("check", sec="SEC_USER_AGENT 없음")
+        return
+    import requests
+    try:
+        r = requests.get("https://data.sec.gov/submissions/CIK0000320193.json", headers={"User-Agent": ua}, timeout=30)
+        log("check", sec=r.status_code)
+        _safe_notify(f"🇺🇸 SEC EDGAR 접속 {'✅' if r.status_code == 200 else f'❌ HTTP {r.status_code}'}")
+    except Exception as e:  # noqa: BLE001
+        log("check", sec_error=str(e)[:200])
+
+
 def cmd_stage(args) -> None:
+    _token_alerts()
     produced = settings.out_dir / "produced.jsonl"
     if not produced.exists():
         log("stage", count=0, note="out/produced.jsonl 없음 (파이프라인이 카드를 만들지 않았음)")
@@ -313,6 +358,12 @@ def cmd_check(args) -> None:
             log("check", instagram_error=str(e)[:300])
     else:
         log("check", instagram="IG_ACCESS_TOKEN 없음")
+    _sec_check()
+    if instagram.fb_ready():
+        try:
+            log("check", fb_token=instagram.fb_token_info())
+        except Exception as e:  # noqa: BLE001
+            log("check", fb_token_error=str(e)[:200])
     if instagram.fb_ready():  # 릴스 음악: 페이스북 로그인 토큰 → 연결된 인스타 계정 → 음악 목록 (2026-10-28)
         try:
             pages = instagram.fb_pages()

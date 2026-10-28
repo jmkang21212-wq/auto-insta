@@ -169,6 +169,14 @@ def fb_ig_user_id() -> str:
     return _FB_IG_ID
 
 
+def fb_token_info() -> dict:
+    """페이스북 토큰 상태: {is_valid, expires_at(초), days_left}. 앱 관리자 본인 토큰이라 자기 자신을 조회할 수 있다"""
+    d = _fb("GET", "debug_token", input_token=os.environ["FB_USER_TOKEN"]).get("data", {})
+    exp = int(d.get("expires_at") or 0)
+    return {"is_valid": bool(d.get("is_valid")), "expires_at": exp,
+            "days_left": None if not exp else round((exp - time.time()) / 86400, 1)}
+
+
 def fb_pages() -> list[dict]:
     """확인용: 토큰으로 보이는 페이지와 연결된 인스타"""
     return _fb("GET", "me/accounts", fields="name,instagram_business_account{id,username}").get("data", [])
