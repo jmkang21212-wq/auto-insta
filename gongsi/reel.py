@@ -29,8 +29,8 @@ W, H, SECONDS = 1080, 1920, 7
 # 2026-10-27 사용자 피드백 "아이폰에서 로고 윗부분이 가려짐"으로 로고를 84px → 270px로 내리고 영상 높이를 줄였다.
 # (14%는 업계 가이드에 흔히 쓰는 값이고 메타 공식 문서로는 확인 필요)
 SAFE_TOP, SAFE_BOTTOM = 270, 1440
-VIDEO_TOP, VIDEO_H = 620, 720  # 영상 자리. 그 아래 '자세한 내용' 줄까지 SAFE_BOTTOM 안
-# 2026-10-28: 큰 로고는 빼고(사용자: '로고는 안 보여도 돼') 그 자리에 '어디에 쓰이는지' 한 줄. 작은 로고는 영상 오른쪽 위
+VIDEO_TOP, VIDEO_H = 630, 640  # 영상 자리. 그 아래 경쟁률 줄과 '자세한 내용' 줄까지 SAFE_BOTTOM 안
+# 2026-10-28 배치: 위 로고 → 제목 → '📍 쓰이는 곳' / 영상 / 아래 경쟁률(둘째 줄) → '자세한 내용' (사용자: 로고는 두고 경쟁률은 영상 아래로)
 
 
 def used_ids() -> set[str]:
@@ -213,33 +213,35 @@ def split_title(text: str, max_w: float = 11.0) -> list[str]:
 
 
 def overlay_html(title: str, second: str, sub: str, use: str = "") -> str:
-    """영상 자리만 투명한 글자 판 HTML. 제목·쓰이는 곳·둘째 줄은 SAFE_TOP 아래(프로필 격자에서도 보이게),
-    '자세한 내용' 줄은 SAFE_BOTTOM 위. 작은 ipov 로고는 영상 오른쪽 위"""
+    """영상 자리만 투명한 글자 판 HTML. 위: 로고·제목·'📍 쓰이는 곳'(SAFE_TOP 아래, 프로필 격자에서도 보이게),
+    영상 아래: 둘째 줄(경쟁률)과 '자세한 내용' 줄(SAFE_BOTTOM 위). 둘째 줄의 괄호는 떼고 크게"""
     from gongsi.render import font_css
 
     esc = lambda s: s.replace("&", "&amp;").replace("<", "&lt;")  # noqa: E731
     lines = "<br>".join(esc(x) for x in split_title(title))
     use_html = f"<div class=u>📍 {esc(use)}</div>" if use else ""
+    second = second.strip()
+    if second.startswith("(") and second.endswith(")"):
+        second = second[1:-1]
+    below = VIDEO_TOP + VIDEO_H
     return f"""<html><head><meta charset=utf-8><style>{font_css()}
 html,body{{margin:0;background:transparent}}
 .c{{width:{W}px;height:{H}px;position:relative;font-family:'Pretendard','Noto Color Emoji'}}
 .top{{position:absolute;left:0;top:0;width:{W}px;height:{VIDEO_TOP}px;background:#0F1115;display:flex;flex-direction:column;align-items:center}}
-.bot{{position:absolute;left:0;top:{VIDEO_TOP + VIDEO_H}px;width:{W}px;height:{H - VIDEO_TOP - VIDEO_H}px;background:#0F1115}}
-.t{{margin-top:{SAFE_TOP}px;text-align:center;color:#fff;font-size:76px;font-weight:900;line-height:1.16;letter-spacing:-.035em;word-break:keep-all}}
-.u{{margin-top:16px;color:#C9D1D9;font-size:42px;font-weight:700;letter-spacing:-.02em;line-height:1.15}}
-.s{{margin-top:12px;color:#F5C84B;font-size:56px;font-weight:800;letter-spacing:-.02em;line-height:1.1}}
-.wm{{position:absolute;top:{VIDEO_TOP + 20}px;right:72px;font-size:32px;font-weight:900;letter-spacing:-.045em;color:#F2F4F6;line-height:1;
-     background:rgba(15,17,21,.6);padding:8px 16px 6px;border-radius:999px}}
+.bot{{position:absolute;left:0;top:{below}px;width:{W}px;height:{H - below}px;background:#0F1115}}
+.wm{{margin-top:{SAFE_TOP}px;font-size:64px;font-weight:900;letter-spacing:-.045em;color:#F2F4F6;line-height:1}}
 .wm .b{{color:#5EA9FF}} .wm .dot{{position:relative;display:inline-block}}
 .wm .dot i{{position:absolute;left:50%;top:.02em;width:.2em;height:.2em;border-radius:50%;background:#F5C84B;transform:translateX(-50%)}}
-.sub{{position:absolute;top:{VIDEO_TOP + VIDEO_H - 112}px;left:0;width:{W}px;text-align:center;color:#fff;font-size:58px;font-weight:900;text-shadow:0 3px 14px #000,0 0 4px #000}}
+.t{{margin-top:26px;text-align:center;color:#fff;font-size:76px;font-weight:900;line-height:1.16;letter-spacing:-.035em;word-break:keep-all}}
+.u{{margin-top:14px;color:#C9D1D9;font-size:42px;font-weight:700;letter-spacing:-.02em;line-height:1.15}}
+.sub{{position:absolute;top:{below - 112}px;left:0;width:{W}px;text-align:center;color:#fff;font-size:58px;font-weight:900;text-shadow:0 3px 14px #000,0 0 4px #000}}
 .tag{{position:absolute;top:{VIDEO_TOP + 24}px;left:72px;font-size:26px;font-weight:600;color:rgba(255,255,255,.85);background:rgba(0,0,0,.45);padding:6px 14px;border-radius:999px}}
-.ar{{position:absolute;top:{VIDEO_TOP + VIDEO_H + 34}px;left:0;width:{W}px;text-align:center;color:#5EA9FF;font-size:50px;font-weight:800;line-height:1.1}}
+.s{{position:absolute;top:{below + 22}px;left:0;width:{W}px;text-align:center;color:#F5C84B;font-size:60px;font-weight:900;letter-spacing:-.02em;line-height:1.1}}
+.ar{{position:absolute;top:{below + 98}px;left:0;width:{W}px;text-align:center;color:#5EA9FF;font-size:44px;font-weight:800;line-height:1.1}}
 </style></head><body><div class=c>
-<div class=top><div class=t>{lines}</div>{use_html}<div class=s>{esc(second)}</div></div>
-<div class=wm><span class=b><span class=dot>ı<i></i></span>po</span>v</div>
+<div class=top><div class=wm><span class=b><span class=dot>ı<i></i></span>po</span>v</div><div class=t>{lines}</div>{use_html}</div>
 <div class=tag>자료 화면</div><div class=sub>{esc(sub)}</div>
-<div class=bot></div><div class=ar>▼ 자세한 내용은 아래에 ▼</div></div></body></html>"""
+<div class=bot></div><div class=s>{esc(second)}</div><div class=ar>▼ 자세한 내용은 아래에 ▼</div></div></body></html>"""
 
 
 def layout_boxes(title: str, second: str, sub: str, use: str = "") -> dict[str, tuple[float, float]]:

@@ -138,14 +138,15 @@ def test_title_split_two_balanced_lines():
 
 
 def test_reel_text_inside_safe_zone():
-    """릴스 글자가 인스타 화면 위·아래 가림 영역 밖에 (2026-10-27 '아이폰에서 로고 윗부분이 가려짐', 2026-10-28 '어디에 쓰이는지 썸네일에').
-    브라우저로 실제 배치를 잰다. 프로필 격자는 가운데 3:4(y 240~1680)만 보여서 제목·쓰이는 곳·둘째 줄이 그 안에"""
+    """릴스 글자가 인스타 화면 위·아래 가림 영역 밖에. 브라우저로 실제 배치를 잰다.
+    2026-10-27 '아이폰에서 로고 윗부분이 가려짐' → 위 270px 비움. 2026-10-28 '어디에 쓰이는지 썸네일에' + '로고는 두고 경쟁률은 영상 아래로'.
+    프로필 격자는 가운데 3:4(y 240~1680)만 보여서 그 안에 다 들어가야 함"""
     bx = layout_boxes("비행기 '균형 감각' 만드는 회사가 상장함", "(기관 경쟁률 1,134.5:1 🔥)", "비행기용 달팽이관", "오폐수 처리·AI 데이터센터·수소차에 쓰임")
-    assert bx["t"][0] >= SAFE_TOP and bx["t"][1] < bx["u"][0] < bx["u"][1] < bx["s"][0], bx  # 제목 → 쓰이는 곳 → 경쟁률
-    assert bx["s"][1] <= VIDEO_TOP - 20, bx  # 둘째 줄이 영상에 안 겹침
-    assert VIDEO_TOP <= bx["wm"][0] and bx["wm"][1] <= VIDEO_TOP + 100, bx  # 작은 로고는 영상 오른쪽 위
+    assert SAFE_TOP <= bx["wm"][0] < bx["wm"][1] < bx["t"][0] < bx["t"][1] < bx["u"][0], bx  # 로고 → 제목 → 쓰이는 곳
+    assert bx["u"][1] <= VIDEO_TOP - 10, bx  # 쓰이는 곳이 영상에 안 겹침
     assert VIDEO_TOP <= bx["sub"][0] and bx["sub"][1] <= VIDEO_TOP + VIDEO_H, bx  # 자막은 영상 안
-    assert bx["ar"][1] <= SAFE_BOTTOM, bx  # '자세한 내용' 줄은 아이디·캡션 줄 위
+    assert VIDEO_TOP + VIDEO_H < bx["s"][0] < bx["s"][1] < bx["ar"][0], bx  # 경쟁률은 영상 아래, 그 아래 '자세한 내용'
+    assert bx["ar"][1] <= SAFE_BOTTOM, bx  # 아이디·캡션 줄 위
 
 
 if __name__ == "__main__":
