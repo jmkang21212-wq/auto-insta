@@ -83,6 +83,9 @@ class IpoFacts(BaseModel):
     valuation_multiple: float | None = None  # 적용 배수
     valuation_basis: str | None = None  # 적용 재무수치 원문
     valuation_basis_year: int | None = None
+    # 상장 후 유통가능 주식 누적표 [{"months", "shares", "pct"}] (확약 해제편, 공모 주주 확약은 빠진 숫자)
+    float_schedule: list[dict] = Field(default_factory=list)
+    corp_code: str | None = None  # 후속편(상장 전날·확약 해제)에서 같은 회사 공시를 다시 찾을 때
     # 청약 결과 (증권발행실적보고서, 청약이 끝난 뒤에만): 일반투자자 배정·청약 수량, 건수, 금액, 균등 잔여 추첨 주식
     retail_alloc: int | None = None
     retail_qty: int | None = None

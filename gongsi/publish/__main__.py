@@ -26,7 +26,7 @@ from datetime import date
 from pathlib import Path
 
 from gongsi.config import settings
-from gongsi.publish import instagram, store, telegram
+from gongsi.publish import instagram, slots, store, telegram
 
 
 def log(stage: str, **kw):
@@ -34,14 +34,25 @@ def log(stage: str, **kw):
 
 
 def _publish(post: store.Post, how: str) -> bool:
+    """format: both = 캐러셀(자세한 캡션) 먼저, 이어서 릴스(짧은 캡션). 캐러셀이 이미 올라갔으면 릴스만 (재시도 때 중복 방지).
+    reel = 릴스만(2026-10-28 이전 게시물), carousel = 카드만"""
+    fmt = post.meta.get("format")
     try:
-        if post.meta.get("format") == "reel" and post.reel:
-            res = instagram.publish_reel(post.reel_url, post.caption, os.getenv("REEL_AUDIO_ID") or None)
+        if fmt == "both" and post.reel and post.images and not post.meta.get("instagram_carousel", {}).get("media_id"):
+            c = instagram.publish_carousel(post.urls, post.caption)
+            post.meta["instagram_carousel"] = {**c, "published_at": date.today().isoformat(), "by": how}
+            post.save()
+            log("publish", corp=post.meta["corp"], rcept_no=post.rcept_no, part="carousel", ok=True, permalink=c.get("permalink"))
+        if fmt in ("both", "reel") and post.reel:
+            res = instagram.publish_reel(post.reel_url, post.caption_reel if fmt == "both" else post.caption,
+                                         music=os.getenv("REEL_MUSIC", "1") != "0")
         else:
             res = instagram.publish_carousel(post.urls, post.caption)
     except Exception as e:
-        post.meta["status"] = "failed"
-        post.meta["instagram"] = {"error": str(e)[:500], "attempts": post.meta.get("instagram", {}).get("attempts", 0) + 1}
+        # 3번까지는 approved로 남겨 다음 확인 때 다시 (둘 다 게시에서 캐러셀만 올라간 경우 릴스만 다시 올라감)
+        attempts = post.meta.get("instagram", {}).get("attempts", 0) + 1
+        post.meta["status"] = "approved" if attempts < 3 else "failed"
+        post.meta["instagram"] = {"error": str(e)[:500], "attempts": attempts}
         post.save()
         log("publish", corp=post.meta["corp"], rcept_no=post.rcept_no, ok=False, error=str(e)[:300])
         _safe_notify(f"❌ {post.meta['corp']} 게시 실패\n{str(e)[:300]}")
@@ -49,8 +60,17 @@ def _publish(post: store.Post, how: str) -> bool:
     post.meta["status"] = "published"
     post.meta["instagram"] = {**res, "published_at": date.today().isoformat(), "by": how}
     post.save()
-    log("publish", corp=post.meta["corp"], rcept_no=post.rcept_no, ok=True, permalink=res.get("permalink"))
-    _safe_notify(f"✅ {post.meta['corp']} 게시됨\n{res.get('permalink') or res.get('media_id')}")
+    log("publish", corp=post.meta["corp"], rcept_no=post.rcept_no, ok=True, permalink=res.get("permalink"), music=res.get("audio_id"))
+    links = [post.meta.get("instagram_carousel", {}).get("permalink"), res.get("permalink") or res.get("media_id")]
+    if res.get("audio_id"):
+        note = f"\n🎵 {res.get('audio_title') or ''} - {res.get('audio_artist') or ''}".rstrip(" -")
+    elif not post.reel:
+        note = ""
+    elif not instagram.fb_ready():
+        note = "\n(음악 없이 올라감: 페이스북 로그인 토큰이 아직 없음)"
+    else:
+        note = f"\n(음악 붙이기 실패해서 소리 없이 올라감: {(res.get('music_error') or '')[:150]})"
+    _safe_notify(f"✅ {post.meta['corp']} 게시됨\n" + "\n".join(l for l in links if l) + note)
     return True
 
 
@@ -88,6 +108,11 @@ def cmd_stage(args) -> None:
         post = store.stage(settings.out_dir / f"run{run}", r["rcept_no"], r["corp"])
         post.meta["phase"] = r.get("phase")
         post.meta["subscription_start"] = r.get("subscription_start")
+        # 게시 시각: 미국 아침, 한국 오후. 같은 날 같은 시장이 겹치면 다음 자리(2시간 뒤)로 (2026-10-28)
+        market = r.get("market") or "KR"
+        taken = {p.meta.get("publish_at") for p in store.all_posts() if p.meta.get("publish_at") and p.meta.get("status") != "rejected"}
+        post.meta["market"] = market
+        post.meta["publish_at"] = slots.assign(market, date.today(), taken)
         post.save()
         _mark_video(post)
         log("stage", corp=r["corp"], rcept_no=r["rcept_no"], dir=str(post.dir.relative_to(store.ROOT)), n=post.meta["n"])
@@ -148,18 +173,22 @@ def cmd_poll(args) -> None:
             continue
         post.meta["status"] = "approved"
         post.save()
+        if not slots.due(post.meta.get("publish_at")):  # 정해 둔 시간대(미국 아침·한국 오후)까지 기다렸다가 게시
+            telegram.ack(cq, f"승인됨, {slots.label(post.meta.get('publish_at'))}에 올려요")
+            log("poll", corp=post.meta["corp"], rcept_no=rcept, decision="approved", publish_at=post.meta.get("publish_at"))
+            continue
         telegram.ack(cq, "게시 중…")
         _publish(post, "telegram")
-    # 승인됐는데 게시에 실패해 approved 로 남은 것 재시도 (최대 3회)
+    # 승인된 것 가운데 시간이 된 것 게시 (+ 게시에 실패해 approved 로 남은 것 재시도, 최대 3회)
     for post in store.all_posts("approved"):
-        if post.meta.get("instagram", {}).get("attempts", 0) < 3:
-            _publish(post, "retry")
+        if slots.due(post.meta.get("publish_at")) and post.meta.get("instagram", {}).get("attempts", 0) < 3:
+            _publish(post, "slot" if not post.meta.get("instagram") else "retry")
 
 
 def _mark_video(post: store.Post) -> None:
     """게시 대기열에 오른 릴스의 영상은 다음 릴스에서 다시 안 쓰게 state/used_media.json에 남긴다"""
     f = post.dir / "bundle.json"
-    if post.meta.get("format") != "reel" or not f.exists():
+    if post.meta.get("format") not in ("reel", "both") or not f.exists():
         return
     vid = (json.loads(f.read_text(encoding="utf-8")).get("video") or {}).get("id")
     if vid:
@@ -190,8 +219,12 @@ def _rerender(post: store.Post, idx: int) -> None:
         raise err or RuntimeError("영상을 못 찾음")
     mark_used(video["id"])
     facts, summary = IpoFacts(**b["facts"]), Summary(**b["summary"])
-    cap = cards.caption(facts, post.rcept_no, summary, b.get("doc", "증권신고서"), hook, credit="📷 자료 화면: Pixabay")
+    src = b.get("source_rcept_no") or post.rcept_no  # 후속편(상장 전날·확약 해제)은 게시물 이름에 꼬리가 붙어 있다
+    cap = cards.caption(facts, src, summary, b.get("doc", "증권신고서"), hook, credit="📷 자료 화면: Pixabay")
     (post.dir / "caption.txt").write_text(cap, encoding="utf-8")
+    if post.meta.get("format") == "both":  # 캐러셀(자세한 판) + 릴스(짧은 판) 둘 다 새 훅으로
+        (post.dir / "caption_reel.txt").write_text(
+            cards.reel_caption(facts, src, summary, b.get("doc", "증권신고서"), hook, credit="📷 자료 화면: Pixabay"), encoding="utf-8")
     b.update(chosen=idx, video=video)
     path.write_text(json.dumps(b, ensure_ascii=False), encoding="utf-8")
     post.meta.update(reel=name, status="pending")
@@ -220,8 +253,42 @@ def cmd_watch(args) -> None:
         waiting = [p for p in store.all_posts() if p.meta.get("status") in ("pending", "approved")]
         if not waiting or time.time() > deadline:
             log("watch", waiting=[p.rcept_no for p in waiting], done=not waiting)
+            if waiting:
+                _chain(waiting)
             return
         time.sleep(60)
+
+
+def _chain(waiting: list[store.Post]) -> None:
+    """감시 실행이 끝나는데 아직 할 일이 남았으면(승인돼 오후 시간대를 기다리는 것, 하루 안 된 승인 대기) 다음 감시 실행을 건다.
+    깃허브 예약 실행은 몇 시간씩 늦거나 안 돌아서 이어 붙인다 (2026-10-28). 같은 줄(posts)에 대기 중인 실행이 이미 있으면
+    새로 걸면 그걸 취소시키므로 걸지 않는다 (아침 생성 실행이 취소된 일이 있었음)"""
+    repo, token = os.getenv("GITHUB_REPOSITORY"), os.getenv("GITHUB_TOKEN")
+    if os.getenv("GITHUB_ACTIONS") != "true" or not (repo and token):
+        return
+    now = slots.now_kst()
+    def worth(p: store.Post) -> bool:
+        if p.meta.get("status") == "approved":
+            return True
+        sent = (p.meta.get("telegram") or {}).get("sent_at")
+        return not sent or (now - slots.parse(sent)).total_seconds() < 20 * 3600
+    if not any(worth(p) for p in waiting):
+        log("chain", skipped="남은 건 하루 넘게 승인 안 된 것뿐")
+        return
+    import requests
+    h = {"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"}
+    try:
+        busy = [r for s in ("queued", "pending", "waiting", "requested")
+                for r in requests.get(f"https://api.github.com/repos/{repo}/actions/runs", headers=h,
+                                      params={"status": s, "per_page": 5}, timeout=30).json().get("workflow_runs", [])]
+        if busy:
+            log("chain", skipped=f"대기 중인 실행이 이미 있음: {[r.get('name') for r in busy]}")
+            return
+        r = requests.post(f"https://api.github.com/repos/{repo}/actions/workflows/publish.yml/dispatches", headers=h,
+                          json={"ref": os.getenv("GITHUB_REF_NAME", "main"), "inputs": {"cmd": "watch", "minutes": "330"}}, timeout=30)
+        log("chain", ok=r.status_code == 204, status=r.status_code, waiting=[p.rcept_no for p in waiting])
+    except Exception as e:  # noqa: BLE001
+        log("chain", ok=False, error=str(e)[:200])
 
 
 def cmd_publish(args) -> None:

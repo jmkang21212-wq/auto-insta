@@ -184,7 +184,8 @@ def test_final_terms_filings_and_post_only_default():
     from gongsi.pipeline import has_final_terms
     assert has_final_terms("[발행조건확정]증권신고서(지분증권)") and has_final_terms("[기재정정]투자설명서")
     assert not has_final_terms("[기재정정]증권신고서(지분증권)") and not has_final_terms(None)
-    assert settings.post_only  # 기본은 수요예측 결과 뒤에만 게시 (2026-10-28)
+    # 2026-10-28 밤 '여러 번 다루기'로 바뀜: 기본은 신고서 단계(몸값 공개)부터 게시. POST_ONLY=1 이면 예전처럼 결과 뒤만
+    assert not settings.post_only
 
 
 def test_schedule_dates_that_contradict_subscription_are_dropped():
@@ -277,8 +278,9 @@ def test_valuation_line_and_caption_block():
                  demand_ratio=1041.02, underwriters=["신한투자증권"], valuation_krw=21304,
                  valuation_discount_low_pct=28.18, valuation_discount_high_pct=40.86, valuation_model="PER",
                  valuation_multiple=19.48, valuation_basis="추정치 (2027년 추정 당기순이익)", valuation_basis_year=2027)
-    assert line2(f) == "공모가 15,300원 → 주관사가 매긴 몸값 21,304원"
-    assert line2(f.model_copy(update={"final_price_krw": None})) == "공모가 12,600~15,300원 → 주관사 몸값 21,304원"
+    # 2026-10-28 밤: 화면엔 가격만, 두 숫자가 뭔지는 캡션에
+    assert line2(f) == "15,300원 → 21,304원"
+    assert line2(f.model_copy(update={"final_price_krw": None})) == "12,600~15,300원 → 21,304원"
     assert line2(f.model_copy(update={"valuation_krw": None})).startswith("기관 경쟁률")  # 몸값을 못 읽으면 예전처럼 경쟁률
 
     cap = cards.caption(f, "20261016000158")

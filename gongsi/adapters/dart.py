@@ -35,6 +35,7 @@ BASE = "https://opendart.fss.or.kr/api"
 
 REPORT_TYPE_RULES = [
     ("증권신고서(지분증권)", "ipo"),
+    ("증권발행실적보고서", "ipo_result"),  # 청약 결과·상장일 → 상장 전날 게시물 (2026-10-28 '여러 번 다루기')
     ("유상증자결정", "capital_increase"),
     ("전환사채권발행결정", "cb"),
     ("신주인수권부사채권발행결정", "bw"),
@@ -48,8 +49,8 @@ MARKET = {"Y": "코스피", "K": "코스닥", "N": "코넥스", "E": None}  # E(
 def classify(report_nm: str, corp_name: str = "", corp_cls: str = "") -> str:
     for key, t in REPORT_TYPE_RULES:
         if key in report_nm:
-            if t == "ipo":
-                # 증권신고서(지분증권)은 공모주만이 아니다: 스팩, 상장사의 공모 유상증자도 같은 서식
+            if t in ("ipo", "ipo_result"):
+                # 증권신고서(지분증권)·발행실적보고서는 공모주만이 아니다: 스팩, 상장사의 공모 유상증자도 같은 서식
                 if "기업인수목적" in corp_name or "스팩" in corp_name:
                     return "spac"
                 if corp_cls in ("Y", "K", "N"):
@@ -265,7 +266,7 @@ class DartAdapter(Adapter):
             valuation_krw=merged.valuation_krw, valuation_discount_low_pct=merged.valuation_discount_low_pct,
             valuation_discount_high_pct=merged.valuation_discount_high_pct, valuation_model=merged.valuation_model,
             valuation_multiple=merged.valuation_multiple, valuation_basis=merged.valuation_basis,
-            valuation_basis_year=merged.valuation_basis_year,
+            valuation_basis_year=merged.valuation_basis_year, float_schedule=merged.float_schedule, corp_code=d.corp_code,
             raw={"documents": read, "found": merged.found, "derived": merged.derived, "api_calls": self.calls},
         )
         # 청약이 끝났으면 증권발행실적보고서로 청약 결과·상장일을 채운다 (상장 앞두고 올리는 게시물용, 2026-10-28)

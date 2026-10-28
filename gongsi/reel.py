@@ -28,7 +28,10 @@ W, H, SECONDS = 1080, 1920, 7
 # 릴스 화면 안전 영역: 위 14%(약 270px)는 인스타 앱 상단(상태 표시줄·릴스 머리글)에, 아래 약 25%는 아이디·캡션·오디오 줄에 가린다.
 # 2026-10-27 사용자 피드백 "아이폰에서 로고 윗부분이 가려짐"으로 로고를 84px → 270px로 내리고 영상 높이를 줄였다.
 # (14%는 업계 가이드에 흔히 쓰는 값이고 메타 공식 문서로는 확인 필요)
-SAFE_TOP, SAFE_BOTTOM = 270, 1440
+# 아래 끝: 2026-10-28 밤 사용자 '영상 하단 문구 더 내려도 돼, 아래 공간이 많이 남음' → 1440에서 1600으로.
+# (보수적인 안내는 아래 35%를 비우라고 하지만(캡션이 길게 펼쳐질 때 기준), 실제 화면에서 비어 보인다는 사용자 확인을 따름.
+#  프로필 격자는 가운데 3:4(y 240~1680)라 그 안)
+SAFE_TOP, SAFE_BOTTOM = 270, 1600
 VIDEO_TOP, VIDEO_H = 630, 640  # 영상 자리. 그 아래 경쟁률 줄과 '자세한 내용' 줄까지 SAFE_BOTTOM 안
 # 2026-10-28 배치: 위 로고 → 제목 → '📍 쓰이는 곳' / 영상 / 아래 경쟁률(둘째 줄) → '자세한 내용' (사용자: 로고는 두고 경쟁률은 영상 아래로)
 
@@ -237,7 +240,7 @@ html,body{{margin:0;background:transparent}}
 .u{{margin-top:14px;color:#C9D1D9;font-size:42px;font-weight:700;letter-spacing:-.02em;line-height:1.15}}
 .sub{{position:absolute;top:{below - 112}px;left:0;width:{W}px;text-align:center;color:#fff;font-size:58px;font-weight:900;text-shadow:0 3px 14px #000,0 0 4px #000}}
 .tag{{position:absolute;top:{VIDEO_TOP + 24}px;left:72px;font-size:26px;font-weight:600;color:rgba(255,255,255,.85);background:rgba(0,0,0,.45);padding:6px 14px;border-radius:999px}}
-.s{{position:absolute;top:{below + 22}px;left:0;width:{W}px;text-align:center;color:#F5C84B;font-size:60px;font-weight:900;letter-spacing:-.02em;line-height:1.1;white-space:nowrap}}
+.s{{position:absolute;top:{below + 56}px;left:0;width:{W}px;text-align:center;color:#F5C84B;font-size:{LINE2_PX}px;font-weight:900;letter-spacing:-.02em;line-height:1.1;white-space:nowrap}}
 .ar{{position:absolute;bottom:{H - SAFE_BOTTOM + 2}px;left:0;width:{W}px;text-align:center;color:#5EA9FF;font-size:44px;font-weight:800;line-height:1.1}}
 </style></head><body><div class=c>
 <div class=top><div class=wm><span class=b><span class=dot>ı<i></i></span>po</span>v</div><div class=t>{lines}</div>{use_html}</div>
@@ -245,15 +248,16 @@ html,body{{margin:0;background:transparent}}
 <div class=bot></div><div class=s><span class=si>{esc(second)}</span></div><div class=ar>▼ 자세한 내용은 아래에 ▼</div></div></body></html>"""
 
 
-# 영상 아래 줄이 길면('공모가 15,300원 → 주관사가 매긴 몸값 21,304원') 한 줄에 들어갈 때까지 글자를 줄인다 (60px → 최소 40px)
+# 영상 아래 줄이 길면 한 줄에 들어갈 때까지 글자를 줄인다 (LINE2_PX → 최소 40px)
 _FIT_JS = """async (maxw) => {
   await document.fonts.ready;
   const el = document.querySelector('.s .si'); if (!el) return 0;
-  let size = 60;
+  let size = parseFloat(getComputedStyle(el.parentElement).fontSize);
   while (el.getBoundingClientRect().width > maxw && size > 40) { size -= 1; el.parentElement.style.fontSize = size + 'px'; }
   return size;
 }"""
 LINE2_MAX_W = W - 80  # 양옆 40px 여백
+LINE2_PX = 88  # 영상 아래 줄 글자 크기 (2026-10-28 '가격만 15,300원 → 21,304원'으로 짧아져서 크게, 길면 _FIT_JS가 줄임)
 
 
 def layout_boxes(title: str, second: str, sub: str, use: str = "") -> dict[str, tuple[float, float]]:

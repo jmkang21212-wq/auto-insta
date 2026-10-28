@@ -673,11 +673,70 @@ def caption(facts: IpoFacts, rcept_no: str, summary: Summary | None = None, doc:
         nxt += wrap(EXPLAIN["forecast"]) + item("→", "결과 나오면 경쟁률·확약 들고 다시 옴")
         blocks.append(nxt)
 
-    blocks.append([f"📄 DART {doc} {rcept_no}", f"📄 DART 발행실적보고서 {facts.result_rcept_no}" if done and facts.result_rcept_no else "",
-                   credit, "※ 투자 권유 아님, 판단은 각자 몫"])
+    return _join(blocks + _tail(facts, rcept_no, doc, credit, done))
+
+
+def _tail(facts: IpoFacts, rcept_no: str, doc: str, credit: str, done: bool, extra_tag: str = "") -> list[list[str]]:
+    """캡션 끝 덩어리: 출처·자료 화면·면책 → 고정 문구 + 계정 아이디 → 해시태그 5개 (캐러셀·릴스 캡션 공통)"""
+    blocks = [[f"📄 DART {doc} {rcept_no}", f"📄 DART 발행실적보고서 {facts.result_rcept_no}" if done and facts.result_rcept_no else "",
+               credit, "※ 투자 권유 아님, 판단은 각자 몫"]]
     handle = BRAND.get("handle", "")  # 마무리: 고정 문구 + 다음 줄 계정 아이디 (2026-10-27 사용자 지정)
     blocks.append([BRAND.get("caption_cta", "🪄 공모주 분석, 제일 먼저 받아보기")] + ([f"@{handle}"] if handle else []))
-    tags = ["#공모주", "#공모주청약", "#" + corp.replace(" ", ""), "#신규상장" if done else "#청약일정", BRAND.get("hashtag", "")]
+    tags = ["#공모주", "#공모주청약", "#" + facts.corp_name.replace(" ", ""), extra_tag or ("#신규상장" if done else "#청약일정"),
+            BRAND.get("hashtag", "")]
     blocks.append([" ".join([t for t in dict.fromkeys(tags) if t and t != "#"][:5])])
+    return blocks
+
+
+def _join(blocks: list[list[str]]) -> str:
     blocks = [[l for l in b if l] for b in blocks]  # 값이 없어 비는 줄은 빼서 덩어리 안에 빈 줄이 생기지 않게
     return "\n\n".join("\n".join(b) for b in blocks if b)
+
+
+def reel_caption(facts: IpoFacts, rcept_no: str, summary: Summary | None = None, doc: str = "증권신고서",
+                 hook=None, credit: str = "") -> str:
+    """릴스 캡션: 정보 + 간단한 설명만 (2026-10-28 사용자 결정: '비교 내용 같은 건 줄이고 캐러셀에서 자세히').
+    같은 날 먼저 올라가는 캐러셀(카드뉴스) 캡션이 자세한 판(caption)이고, 릴스는 거기로 보내는 입구.
+    순서: 훅 + 용어 풀이 → 핵심 숫자(단계별 2~3개, 풀이 한 줄씩) → 카드뉴스 안내 → 출처·면책 → 고정 문구 → 해시태그.
+    주관사 몸값을 쓰면 신고서의 '적정주가 아님' 문장을 꼭 붙인다"""
+    corp = facts.corp_name
+    post = facts.demand_ratio is not None
+    done = retail_ratio(facts) is not None
+
+    def item(sign: str, text: str) -> list[str]:
+        return wrap(f"{sign} {text}")
+
+    first: list[str] = []
+    if hook:
+        first += wrap(hook.headline()) + (wrap(hook.explain) if hook.explain else [])
+    else:
+        first.append(f"📢 {corp} {'상장 앞둠' if done else '공모주 소식'}")
+    if done and facts.listing_date:
+        first += item("-", f"주인공은 {corp}, {nb(kdate(facts.listing_date))} {facts.market or ''} 상장".replace("  ", " "))
+    else:
+        first += item("-", f"주인공은 {corp}" + (f", {facts.market} 상장 예정" if facts.market else ""))
+
+    # 화면엔 숫자만('15,300원 → 21,304원', 2026-10-28 밤 사용자 결정)이라, 두 숫자가 뭔지를 숫자 덩어리 맨 앞에서 바로 푼다.
+    # 몸값을 쓰면 신고서의 '상장 뒤 적정주가 아님' 문장을 꼭 붙인다
+    price = (f"{facts.final_price_krw:,}원" if facts.final_price_krw else
+             f"{facts.band_low_krw:,}~{facts.band_high_krw:,}원" if facts.band_low_krw and facts.band_high_krw else "")
+    key: list[str] = []
+    if facts.valuation_krw and price:
+        key += item("-", f"화면 속 {price} → {facts.valuation_krw:,}원은")
+        key += wrap(f": {'확정 공모가' if facts.final_price_krw else '희망 공모가'} → 주관사가 매긴 주당 몸값")
+        key += wrap(": 몸값은 비슷한 상장사와 견줘 주관사가 계산한 값임")
+        key += wrap(": 신고서는 이 값이 상장 뒤 적정주가는 아니라고 밝힘")
+    elif price:
+        key += item("-", f"{'확정' if facts.final_price_krw else '희망'} 공모가 {price}")
+    if done:
+        key += item("-", f"일반 청약 경쟁률 약 {ratio(retail_ratio(facts))}")
+        if facts.retail_applicants:
+            key += item("-", f"청약 {facts.retail_applicants:,}건")
+    elif post:
+        key += item("-", f"기관 경쟁률 {ratio(facts.demand_ratio)}")
+        key += wrap(EXPLAIN["demand"].format(x=f"{facts.demand_ratio:,g}"))
+    elif facts.subscription_start:
+        key += item("-", f"청약은 {nb(kdays(facts.subscription_start, facts.subscription_end))}")
+
+    guide = ["📌 몸값 계산법·비교·위험은 카드뉴스에 정리함", "👉 프로필에서 바로 옆 게시물"]
+    return _join([first, key, guide] + _tail(facts, rcept_no, doc, credit, done))

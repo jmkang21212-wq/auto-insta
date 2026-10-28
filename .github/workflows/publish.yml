@@ -1,7 +1,7 @@
 name: publish approved
 on:
-  schedule:
-    - cron: "7,37 23,0-13 * * *"   # 08:07~22:37 KST 30분마다 텔레그램 버튼 응답 확인. 이 저장소에선 예약이 안 돌아서 Claude 예약 작업이 평일 18:43에 한 번 대신 실행
+  # 30분 예약 확인은 2026-10-28에 뺐다: 깃허브 예약이 몇 시간씩 늦게 돌면서 같은 줄(posts)에 대기 중이던
+  # 아침 생성 실행을 취소시킬 수 있어서. 대신 생성 실행의 감시가 끝날 때 할 일이 남았으면 이 감시 실행을 이어 건다
   workflow_dispatch:
     inputs:
       cmd:
@@ -11,21 +11,24 @@ on:
         description: "publish 일 때 접수번호"
         default: ""
       minutes:
-        description: "watch 일 때 승인을 기다릴 시간(분, 최대 110)"
-        default: "60"
+        description: "watch 일 때 승인을 기다릴 시간(분, 최대 330)"
+        default: "330"
 
 concurrency: { group: posts, cancel-in-progress: false }
 
 jobs:
   poll:
     runs-on: ubuntu-latest
-    timeout-minutes: 120   # watch(승인 대기)일 때만 길게 돈다. poll은 몇 분
-    permissions: { contents: write }
+    timeout-minutes: 355   # watch(승인 대기·시간대 게시)일 때만 길게 돈다. poll은 몇 분
+    permissions: { contents: write, actions: write }
     env:
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
       IG_USER_ID: ${{ secrets.IG_USER_ID }}
       IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+      FB_USER_TOKEN: ${{ secrets.FB_USER_TOKEN }}
+      IG_FB_USER_ID: ${{ secrets.IG_FB_USER_ID }}
+      GITHUB_TOKEN: ${{ github.token }}
       PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}   # [N번 훅으로] 다시 만들 때 영상 검색
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}   # 다시 만들 때 영상 첫 장면 비전 확인 (없으면 확인 생략)
       TZ: Asia/Seoul
@@ -46,7 +49,7 @@ jobs:
           if [ "$CMD" = "publish" ]; then
             python -m gongsi.publish publish --rcept-no "${{ github.event.inputs.rcept_no }}"
           elif [ "$CMD" = "watch" ]; then
-            python -m gongsi.publish watch --minutes "${{ github.event.inputs.minutes || '60' }}"
+            python -m gongsi.publish watch --minutes "${{ github.event.inputs.minutes || '330' }}"
           else
             python -m gongsi.publish "$CMD"
           fi

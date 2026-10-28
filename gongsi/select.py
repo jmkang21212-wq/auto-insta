@@ -6,10 +6,11 @@ from dataclasses import dataclass
 from gongsi.config import settings
 from gongsi.models import Disclosure
 
-ALLOWED_TYPES = {"ipo", "capital_increase", "cb", "bw", "major_holder", "insider"}
+ALLOWED_TYPES = {"ipo", "ipo_result", "capital_increase", "cb", "bw", "major_holder", "insider"}
 
 TYPE_WEIGHT = {
     "ipo": 10.0,
+    "ipo_result": 9.0,  # 증권발행실적보고서: 상장 전날 게시물
     "capital_increase": 6.0,
     "cb": 5.0,
     "bw": 5.0,
@@ -62,8 +63,8 @@ def select(disclosures: list[Disclosure]) -> list[Scored]:
         return scored
 
     # 공모주는 각각 단독 편(청약 D-2 편성)이라 상한을 적용하지 않는다. 청약이 끝났는지는 추출 단계(원문 날짜)에서 거른다
-    ipos = [s for s in candidates if s.disclosure.report_type == "ipo"]
-    others = [s for s in candidates if s.disclosure.report_type != "ipo"]
+    ipos = [s for s in candidates if s.disclosure.report_type in ("ipo", "ipo_result")]
+    others = [s for s in candidates if s.disclosure.report_type not in ("ipo", "ipo_result")]
     for s in ipos:
         s.selected = s.standalone = True
     for s in others[: settings.max_issues]:

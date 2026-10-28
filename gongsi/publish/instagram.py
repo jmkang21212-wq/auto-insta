@@ -95,17 +95,117 @@ def publish_carousel(image_urls: list[str], caption: str) -> dict:
     return {"media_id": media_id, "permalink": permalink, "children": children}
 
 
-def publish_reel(video_url: str, caption: str, audio_id: str | None = None) -> dict:
+def publish_reel(video_url: str, caption: str, music: bool = True) -> dict:
     """릴스 게시. 영상은 공개 URL(깃허브 raw), 9:16 H.264. 피드에도 보이게 share_to_feed=true.
-    audio_id는 인스타 음악 API(Facebook 로그인 연결에서만)로 고른 곡. Instagram 로그인 연결이면 비워 둔다."""
+    music=True이고 페이스북 로그인 토큰(FB_USER_TOKEN)이 있으면 메타 음악(Audio API)에서 곡을 골라 붙여 게시한다.
+    토큰이 없거나 음악 쪽이 실패하면 지금처럼 Instagram 로그인으로 소리 없이 게시하고, 이유를 music_error에 남긴다"""
     params = {"media_type": "REELS", "video_url": video_url, "caption": caption[:2200], "share_to_feed": "true", "thumb_offset": "500"}
-    if audio_id:
-        params["audio_configuration"] = json.dumps({"audio_id": audio_id, "audio_volume": 100, "video_volume": 0})
+    err = None
+    if music and fb_ready():
+        try:
+            return _publish_reel_fb(params)
+        except Exception as e:  # noqa: BLE001
+            err = str(e)[:300]
     container = _call("POST", f"{_ig()}/media", **params)["id"]
     wait_finished(container, minutes=10)  # 영상은 서버 처리 시간이 걸린다
     media_id = _call("POST", f"{_ig()}/media_publish", creation_id=container)["id"]
     permalink = _call("GET", media_id, fields="permalink").get("permalink")
-    return {"media_id": media_id, "permalink": permalink, "container": container, "format": "reel", "audio_id": audio_id}
+    return {"media_id": media_id, "permalink": permalink, "container": container, "format": "reel", "audio_id": None,
+            **({"music_error": err} if err else {})}
+
+
+# ── 음악: Instagram Audio API (2026-06-01 공개, 페이스북 로그인 전용) ──────────────────────────────
+# 메타 문서 developers.facebook.com/docs/instagram-platform/content-publishing/audio-api (2026-06-16 갱신, 10-28 확인):
+#   필요: 비즈니스/크리에이터 계정 + 연결된 페이스북 페이지 + 페이스북 로그인으로 받은 instagram_basic·instagram_content_publish
+#         권한의 사용자 토큰. Instagram 로그인(지금 IG_ACCESS_TOKEN)으로는 안 됨. 릴스에만 (캐러셀·사진은 음악 불가)
+#   GET  graph.facebook.com/<ver>/ig_audio?audio_type=music&user_id=<IG id>[&search_query=…]  → {"audio": [{audio_id, title,
+#        display_artist, duration_in_ms, …}]}  검색어가 없으면 인기 곡. 제3자 사용이 허락된 곡만 나옴(메타 사운드 컬렉션 등)
+#   POST /<IG id>/media  media_type=REELS … audio_configuration={"audio_id", "audio_volume", "video_volume", "should_loop_audio"}
+FB_HOST = "graph.facebook.com"
+
+
+def fb_ready() -> bool:
+    return bool(os.getenv("FB_USER_TOKEN"))
+
+
+def _fb(method: str, path: str, **params) -> dict:
+    url = f"https://{FB_HOST}/{_ver()}/{path}"
+    params["access_token"] = os.environ["FB_USER_TOKEN"]
+    r = requests.request(method, url, params=params if method == "GET" else None, data=params if method != "GET" else None, timeout=60)
+    try:
+        data = r.json()
+    except ValueError:
+        raise RuntimeError(f"facebook {path}: HTTP {r.status_code} {r.text[:200]}")
+    if "error" in data:
+        e = data["error"]
+        raise RuntimeError(f"facebook {path}: ({e.get('code')}/{e.get('error_subcode')}) {e.get('message')}")
+    return data
+
+
+_FB_IG_ID: str | None = None
+
+
+def fb_ig_user_id() -> str:
+    """페이스북 로그인 쪽 인스타 계정 ID(Instagram 로그인 쪽 ID와 다름). IG_FB_USER_ID가 없으면 토큰의 페이지에서 찾는다"""
+    global _FB_IG_ID
+    if os.getenv("IG_FB_USER_ID"):
+        return os.environ["IG_FB_USER_ID"]
+    if _FB_IG_ID is None:
+        pages = _fb("GET", "me/accounts", fields="name,instagram_business_account{id,username}").get("data", [])
+        accts = [p["instagram_business_account"] for p in pages if p.get("instagram_business_account")]
+        want = os.getenv("IG_USERNAME", "ipo_view")
+        pick = next((a for a in accts if a.get("username") == want), accts[0] if accts else None)
+        if not pick:
+            raise RuntimeError("토큰의 페이스북 페이지에 연결된 인스타 계정이 없음 (인스타 설정에서 페이지 연결 필요)")
+        _FB_IG_ID = str(pick["id"])
+    return _FB_IG_ID
+
+
+def _used_audio_path():
+    from gongsi.publish.store import ROOT
+    return ROOT / "state" / "used_audio.json"
+
+
+def pick_music(query: str | None = None, min_ms: int = 10_000, recent: int = 20) -> dict:
+    """인기 곡(검색어 없을 때)에서 최근 쓴 곡을 빼고 10초 이상인 첫 곡"""
+    f = _used_audio_path()
+    used = json.loads(f.read_text(encoding="utf-8")) if f.exists() else []
+    params = {"audio_type": "music", "user_id": fb_ig_user_id()}
+    if query:
+        params["search_query"] = query
+    got = _fb("GET", "ig_audio", **params)
+    items = got.get("audio") or got.get("data") or []
+    fresh = [a for a in items if a.get("audio_id") and str(a["audio_id"]) not in used[-recent:]
+             and (a.get("duration_in_ms") or min_ms) >= min_ms]
+    if not (fresh or items):
+        raise RuntimeError("ig_audio 결과가 비어 있음")
+    return (fresh or items)[0]
+
+
+def _publish_reel_fb(params: dict) -> dict:
+    ig = fb_ig_user_id()
+    track = pick_music(os.getenv("REEL_MUSIC_QUERY") or None)
+    # 우리 영상은 소리 없는 트랙이라 영상 소리 0, 음악 100
+    params = {**params, "audio_configuration": json.dumps({"audio_id": str(track["audio_id"]), "audio_volume": 100,
+                                                           "video_volume": 0, "should_loop_audio": True})}
+    container = _fb("POST", f"{ig}/media", **params)["id"]
+    for _ in range(20):  # 영상 처리 최대 10분
+        st = _fb("GET", container, fields="status_code").get("status_code")
+        if st == "FINISHED":
+            break
+        if st in ("ERROR", "EXPIRED"):
+            raise RuntimeError(f"컨테이너 {container} 상태 {st}")
+        time.sleep(30)
+    else:
+        raise RuntimeError(f"컨테이너 {container} 가 10분 안에 FINISHED 되지 않음")
+    media_id = _fb("POST", f"{ig}/media_publish", creation_id=container)["id"]
+    permalink = _fb("GET", media_id, fields="permalink").get("permalink")
+    f = _used_audio_path()
+    used = json.loads(f.read_text(encoding="utf-8")) if f.exists() else []
+    f.parent.mkdir(parents=True, exist_ok=True)
+    f.write_text(json.dumps((used + [str(track["audio_id"])])[-50:]), encoding="utf-8")
+    return {"media_id": media_id, "permalink": permalink, "container": container, "format": "reel", "host": FB_HOST,
+            "audio_id": str(track["audio_id"]), "audio_title": track.get("title"), "audio_artist": track.get("display_artist")}
 
 
 def refresh_token() -> dict:

@@ -276,18 +276,45 @@ def previous_hook(facts: IpoFacts) -> Hook | None:
 
     for post in reversed(all_posts()):
         f = post.dir / "bundle.json"
-        if post.meta.get("corp") != facts.corp_name or post.meta.get("phase") != "pre" or not f.exists():
+        # 앞서 올린 같은 회사 게시물 (수요예측 전·후·상장 전날) 가운데 가장 최근 것의 훅 (2026-10-28 여러 번 다루기)
+        if post.meta.get("corp") != facts.corp_name or post.meta.get("phase") not in ("pre", "post", "listing") or not f.exists():
+            continue
+        if post.meta.get("status") == "rejected":
             continue
         b = json.loads(f.read_text(encoding="utf-8"))
         if not b.get("hooks"):
             continue
         raw = b["hooks"][min(int(b.get("chosen") or 0), len(b["hooks"]) - 1)]
-        h = Hook(**{k: str(raw.get(k, "")) for k in ("title", "term", "emoji", "sub", "video", "use")})
+        h = Hook(**{k: str(raw.get(k, "")) for k in ("title", "term", "emoji", "sub", "video", "use")},
+                 alt_videos=[str(v) for v in raw.get("alt_videos") or []])
+        h.title = phase_title(h.title, "pre")  # 단계 꼬리('내일 상장함' 등)는 떼고 원래 제목으로
         if check_hook(h, facts):
             return None
         h.explain = explain_line(h.term, facts.glossary, aliases(facts.business_evidence), h.title, facts.business_evidence)
         return h
     return None
+
+
+_TITLE_TAIL = re.compile(r"(?:\s*(?:가|이)\s*(?:내일|곧|[월화수목금토일]요일)?\s*상장함|,\s*묶인 주식 풀림)$")
+
+
+def phase_title(title: str, phase: str, listing_date: str | None = None, today=None) -> str:
+    """훅 제목 꼬리를 게시 단계에 맞게 (2026-10-28 공모주 여러 번 다루기):
+    pre/post '…회사가 상장함' / listing '…회사가 내일 상장함'(주말 끼면 '월요일 상장함') / lockup* '…회사, 묶인 주식 풀림'.
+    꼬리 꼴을 모르는 제목은 그대로 둔다. 여러 번 바꿔도 같은 결과"""
+    from datetime import date as _date
+
+    base = _TITLE_TAIL.sub("", title).rstrip()
+    if base == title.rstrip() and not title.rstrip().endswith("상장함"):
+        return title
+    if phase.startswith("lockup"):
+        return f"{base}, 묶인 주식 풀림"
+    josa = _josa(base, "이", "가")
+    if phase == "listing" and listing_date and today:
+        ld = _date.fromisoformat(listing_date)
+        when = "내일" if (ld - today).days == 1 else f"{'월화수목금토일'[ld.weekday()]}요일"
+        return f"{base}{josa} {when} 상장함"
+    return f"{base}{josa} 상장함"
 
 
 def line2(facts: IpoFacts) -> str:
@@ -297,11 +324,12 @@ def line2(facts: IpoFacts) -> str:
     청약 전에 나오는 건 기관 수요예측 경쟁률이라 '기관'을 붙인다 (일반 청약 경쟁률은 청약 당일 증권사가 발표)"""
     from gongsi.cards import ratio
 
-    # 2026-10-28 사용자 결정: 경쟁률 대신 '공모가 → 주관사가 매긴 몸값'을 원 단위로 (경쟁률은 캡션에 그대로)
+    # 2026-10-28 사용자 결정: 경쟁률 대신 '공모가 → 주관사가 매긴 몸값'을 원 단위로 (경쟁률은 캡션에 그대로).
+    # 같은 날 밤: 화면엔 가격만 '15,300원 → 21,304원', 두 숫자가 뭔지와 '적정주가 아님'은 캡션 첫머리에
     if facts.valuation_krw and facts.final_price_krw:
-        return f"공모가 {facts.final_price_krw:,}원 → 주관사가 매긴 몸값 {facts.valuation_krw:,}원"
+        return f"{facts.final_price_krw:,}원 → {facts.valuation_krw:,}원"
     if facts.valuation_krw and facts.band_low_krw and facts.band_high_krw:  # 수요예측 전: 희망 공모가 범위
-        return f"공모가 {facts.band_low_krw:,}~{facts.band_high_krw:,}원 → 주관사 몸값 {facts.valuation_krw:,}원"
+        return f"{facts.band_low_krw:,}~{facts.band_high_krw:,}원 → {facts.valuation_krw:,}원"
     if facts.demand_ratio is not None:
         return f"기관 경쟁률 {ratio(facts.demand_ratio)} {'🔥' if facts.demand_ratio >= HOT_RATIO else '👀'}"
     if facts.forecast_end:

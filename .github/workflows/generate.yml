@@ -20,7 +20,7 @@ jobs:
   generate:
     runs-on: ubuntu-latest
     timeout-minutes: 355   # 끝에서 최대 5시간 반 동안 텔레그램 승인을 기다렸다가 바로 게시 (watch)
-    permissions: { contents: write }
+    permissions: { contents: write, actions: write }   # actions: 감시가 끝날 때 다음 감시 실행을 이어 건다
     env:
       DART_API_KEY: ${{ secrets.DART_API_KEY }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -30,6 +30,8 @@ jobs:
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
       IG_USER_ID: ${{ secrets.IG_USER_ID }}
       IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+      FB_USER_TOKEN: ${{ secrets.FB_USER_TOKEN }}   # 릴스 음악(페이스북 로그인). 없으면 소리 없이 게시
+      IG_FB_USER_ID: ${{ secrets.IG_FB_USER_ID }}
       APPROVAL: ${{ vars.APPROVAL || 'telegram' }}
       TZ: Asia/Seoul
     steps:
@@ -64,8 +66,8 @@ jobs:
           git diff --cached --quiet || git commit -m "posts: notify $(date +%F)"
           git pull --rebase origin ${{ github.ref_name }} || true
           git push
-      - name: 승인 기다렸다가 바로 게시 (대기 중인 게 없으면 바로 끝)
-        env: { GIT_SYNC: "1" }
+      - name: 승인 기다렸다가 시간대에 게시 (미국 아침·한국 오후. 대기 중인 게 없으면 바로 끝, 남으면 다음 감시를 이어 건다)
+        env: { GIT_SYNC: "1", GITHUB_TOKEN: "${{ github.token }}" }
         run: python -m gongsi.publish watch --minutes ${{ github.event.inputs.watch_minutes || '300' }}
       - name: 게시 결과 커밋
         if: always()

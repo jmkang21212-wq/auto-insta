@@ -167,6 +167,8 @@ class DocFacts:
     valuation_multiple: float | None = None  # 적용 배수 (유사기업 평균)
     valuation_basis: str | None = None  # 적용 재무수치 원문: '추정치 (2027년 추정 당기순이익)'
     valuation_basis_year: int | None = None
+    # [상장 후 유통가능 주식수 현황] 누적표: [{"months": 0(상장일)/1/3/…, "shares": 누적 주식 수, "pct": 비율}] (확약 해제편용)
+    float_schedule: list[dict] = field(default_factory=list)
     derived: dict[str, str] = field(default_factory=dict)  # 계산값 → 공식
     found: dict[str, str] = field(default_factory=dict)  # 항목 → 어디서 찾았는지 (로그용)
 
@@ -328,6 +330,30 @@ def parse_valuation(lines: list[str]) -> dict:
     return out
 
 
+def parse_float_schedule(lines: list[str]) -> list[dict]:
+    """'[상장 후 유통가능 주식수 현황]' 누적표 (2026-10-28 확약 해제편). 여러 번 나오면 정정 전이 아닌 마지막 표:
+    | 상장일 유통가능 | 3,551,856 | 31.29%   | 상장 후 1개월 뒤 유통가능 | 5,337,354 | 47.02%  …
+    신고서 주석대로 '공모 주주의 의무보유 확약은 고려하지 않은' 숫자다"""
+    before = _amend_flags(lines)
+    tables: list[list[dict]] = []
+    cur: list[dict] = []
+    for i, ln in enumerate(lines):
+        c = _cells(ln) if ln.startswith("|") else []
+        head = c[0].replace(" ", "") if c else ""
+        m = re.fullmatch(r"상장(?:일|후(\d+)(개월|년)뒤)유통가능", head)
+        if m and len(c) >= 3 and _int(c[1]) and not before[i]:
+            months = 0 if not m.group(1) else int(m.group(1)) * (12 if m.group(2) == "년" else 1)
+            pc = _float(c[2])
+            if months == 0 and cur:
+                tables.append(cur)
+                cur = []
+            cur.append({"months": months, "shares": _int(c[1]), "pct": pc})
+    if cur:
+        tables.append(cur)
+    good = [t for t in tables if t and t[0]["months"] == 0 and len(t) >= 2]
+    return good[-1] if good else []
+
+
 def parse(text: str) -> DocFacts:
     t = body_text(text)
     lines = t.split("\n")
@@ -335,6 +361,10 @@ def parse(text: str) -> DocFacts:
 
     for k, v in parse_valuation(lines).items():
         setattr(f, k, v)
+    f.float_schedule = parse_float_schedule(lines)
+    if f.float_schedule:  # 상장일 유통 가능 비율은 정정 후 누적표 값이 가장 새 값 (아래 표 찾기보다 먼저)
+        f.float_ratio_pct = f.float_schedule[0]["pct"]
+        f.found["float"] = "상장 후 유통가능 주식수 현황 (정정 후)"
     if f.valuation_krw:
         f.found["valuation"] = f"{f.valuation_krw:,}원, 할인율 {f.valuation_discount_high_pct}~{f.valuation_discount_low_pct}%"
 
@@ -448,8 +478,8 @@ def parse(text: str) -> DocFacts:
                 f.derived[f"{f.lockup_ratio_pct:g}"] = f"lockup: ({' + '.join(rows)}) / {total} * 100"
                 f.found["lockup"] = f"합계 수량 {total}, 확약 {locked}"
 
-    # 유통 가능 물량
-    for ln in lines:
+    # 유통 가능 물량 (누적표에서 못 읽었을 때)
+    for ln in lines if f.float_ratio_pct is None else []:
         c = _cells(ln)
         if c and c[0].replace(" ", "") == "상장일유통가능" and len(c) >= 3:
             pc = [x for x in c[1:] if "%" in x] or [x for x in c[1:] if re.fullmatch(r"\d{1,2}\.\d+", x.strip())]

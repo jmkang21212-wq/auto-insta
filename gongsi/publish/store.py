@@ -64,7 +64,14 @@ class Post:
 
     @property
     def caption(self) -> str:
+        """캐러셀(자세한 판) 캡션. 릴스만 있는 예전 게시물은 이게 릴스 캡션"""
         return (self.dir / "caption.txt").read_text(encoding="utf-8")
+
+    @property
+    def caption_reel(self) -> str:
+        """릴스 캡션(짧은 판, 2026-10-28~). 없으면 caption.txt"""
+        f = self.dir / "caption_reel.txt"
+        return f.read_text(encoding="utf-8") if f.exists() else self.caption
 
     @property
     def urls(self) -> list[str]:
@@ -80,21 +87,25 @@ def stage(run_dir: Path, rcept_no: str, corp: str, when: date | None = None) -> 
     out = POSTS / when.isoformat() / rcept_no
     out.mkdir(parents=True, exist_ok=True)
     pngs = sorted(run_dir.glob(f"{rcept_no}_[0-9][0-9].png"))
-    if not pngs:
-        raise FileNotFoundError(f"{run_dir}에 {rcept_no} 카드가 없습니다")
+    if not pngs and not (run_dir / f"{rcept_no}_reel.mp4").exists():  # 확약 해제편은 릴스만 (카드 없음)
+        raise FileNotFoundError(f"{run_dir}에 {rcept_no} 카드도 릴스도 없습니다")
     for old in out.glob("*.jpg"):
         old.unlink()
     for i, png in enumerate(pngs, start=1):
         Image.open(png).convert("RGB").save(out / f"{i:02d}.jpg", "JPEG", quality=90, optimize=True)
     shutil.copy(run_dir / f"{rcept_no}_caption.txt", out / "caption.txt")
+    if (run_dir / f"{rcept_no}_caption_reel.txt").exists():
+        shutil.copy(run_dir / f"{rcept_no}_caption_reel.txt", out / "caption_reel.txt")
     reel = run_dir / f"{rcept_no}_reel.mp4"
     if reel.exists():
         shutil.copy(reel, out / "reel.mp4")
     if (run_dir / f"{rcept_no}_bundle.json").exists():
         shutil.copy(run_dir / f"{rcept_no}_bundle.json", out / "bundle.json")
+    # 릴스가 있으면 캐러셀(자세한 판, 먼저) + 릴스(짧은 캡션, 입구) 둘 다 게시 (2026-10-28 사용자 결정)
     post = Post(out, {"corp": corp, "rcept_no": rcept_no, "date": when.isoformat(), "n": len(pngs),
                       "status": "pending", "source_run": run_dir.name,
-                      "format": "reel" if reel.exists() else "carousel", "reel": "reel.mp4" if reel.exists() else None})
+                      "format": ("both" if pngs else "reel") if reel.exists() else "carousel",
+                      "reel": "reel.mp4" if reel.exists() else None})
     post.save()
     return post
 
