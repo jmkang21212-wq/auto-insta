@@ -287,9 +287,9 @@ def thing_of(title: str) -> str:
     return m.group(1) if m else ""
 
 
-def make_reel(title: str, second: str, sub: str, query: str, out: Path) -> dict:
+def make_reel(title: str, second: str, sub: str, query: str, out: Path, thing: str | None = None) -> dict:
     """훅 릴스 한 편. 돌려주는 meta(영상 id·출처)는 캡션 '📷 자료 화면' 줄, 로그, 게시 대기열의 사용 기록용"""
-    found = find_video(query, skip=used_ids() | _RUN_USED, thing=thing_of(title))
+    found = find_video(query, skip=used_ids() | _RUN_USED, thing=thing_of(title) if thing is None else thing)
     if not found:
         raise RuntimeError(f"'{query}' 영상을 못 찾음")
     video, meta = found

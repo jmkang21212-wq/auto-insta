@@ -163,6 +163,26 @@ class DocFacts:
     found: dict[str, str] = field(default_factory=dict)  # 항목 → 어디서 찾았는지 (로그용)
 
 
+# ── 증권발행실적보고서: 청약 결과와 상장일 (2026-10-28 티앤이코리아 '내일 상장' 게시물용) ──
+def parse_offering_result(text: str) -> dict:
+    """'3. 청약 및 배정현황' 표의 일반투자자 줄(배정 수량, 비율, 청약 건수, 청약 수량, 청약 금액)과
+    '상장일(매매개시일) YYYY년 M월 D일', 균등 잔여주식 추첨 수량. 못 읽은 값은 빠진다"""
+    t = body_text(text)
+    out: dict = {}
+    m = re.search(r"일반투자자\s*\|?\s*([\d,]+)\s*\|?\s*([\d.]+)\s*\|?\s*([\d,]+)\s*\|?\s*([\d,]+)\s*\|?\s*([\d,]+)", t)
+    if m:
+        alloc, apps, qty, amount = (_int(m.group(k)) for k in (1, 3, 4, 5))
+        if alloc and qty and qty >= alloc:
+            out.update(retail_alloc=alloc, retail_applicants=apps, retail_qty=qty, retail_amount_krw=amount)
+    m = re.search(r"상장일\s*\(?\s*매매개시일\s*\)?\s*" + KDATE, t)
+    if m:
+        out["listing_date"] = _kdate(m.group(0))
+    m = re.search(r"균등\s*잔여\s*주식\s*([\d,]+)\s*주는[^.]{0,60}?추첨", t)
+    if m:
+        out["even_lottery_shares"] = _int(m.group(1))
+    return out
+
+
 # ── 주요 고객사 (2026-10-28: '공시에 주요 고객사는 안 나와?' → 캡션 🏢에 원문 이름 그대로) ──
 
 NAME = r"(?:[A-Z][A-Za-z0-9&.\-]*(?:\s[A-Z][A-Za-z0-9&.\-]*){0,3}|[가-힣][가-힣A-Za-z0-9]{1,20})"
@@ -339,7 +359,7 @@ def parse(text: str) -> DocFacts:
             rows = []
             for j in range(total_idx - 1, max(i, total_idx - 8), -1):
                 c = _cells(lines[j])
-                if c and "확약" in c[0] and c[0].replace(" ", "") != "미확약":
+                if c and "확약" in c[0] and "미확약" not in c[0].replace(" ", ""):  # '1. 미확약'처럼 번호가 붙어도 뺀다 (2026-10-28 티앤이코리아 100%로 잘못 읽음)
                     q = qty(c)
                     locked += q
                     rows.append(f"{c[0]}={q}")

@@ -27,7 +27,7 @@ from datetime import date, timedelta
 import requests
 
 from gongsi.adapters.base import Adapter
-from gongsi.adapters.dart_doc import DocFacts, parse, to_text
+from gongsi.adapters.dart_doc import parse_offering_result, DocFacts, parse, to_text
 from gongsi.logos import homepage_from_text
 from gongsi.models import Disclosure, IpoFacts, Risk, UseOfProceeds
 
@@ -174,6 +174,15 @@ class DartAdapter(Adapter):
         rest = [r for r in docs if r not in same_day]
         return same_day + [me] + rest
 
+    def offering_result(self, d: Disclosure) -> tuple[str, dict] | None:
+        """같은 회사의 증권발행실적보고서(청약 결과) 가운데 가장 새 것. 없으면 None"""
+        start = date.fromisoformat(d.filed_at) if d.filed_at else date.today() - timedelta(days=60)
+        rows = self._rows(start.isoformat(), date.today().isoformat(), d.corp_code)
+        rep = sorted([r for r in rows if "증권발행실적보고서" in r["report_nm"]], key=lambda r: r["rcept_no"], reverse=True)
+        if not rep:
+            return None
+        return rep[0]["rcept_no"], parse_offering_result(to_text(self.document_xml(rep[0]["rcept_no"])))
+
     # --- 증권신고서(지분증권) ----------------------------------------------------
     def ipo_facts(self, d: Disclosure) -> IpoFacts:
         merged = DocFacts()
@@ -234,7 +243,7 @@ class DartAdapter(Adapter):
                 final_price_date = _ymd(fixed[0]["rcept_dt"])
 
         uses = [UseOfProceeds(purpose=n, amount_krw=a) for n, a in merged.use_of_proceeds] or api_uses
-        return IpoFacts(
+        facts = IpoFacts(
             corp_name=d.corp_name, industry=merged.industry, market=merged.market or d.market, homepage=homepage,
             band_low_krw=merged.band_low_krw, band_high_krw=merged.band_high_krw,
             # API의 slprc는 수요예측 전엔 밴드 하단(예정가)이라 확정가로 쓰면 안 된다. 경쟁률이 있을 때만 폴백
@@ -255,3 +264,17 @@ class DartAdapter(Adapter):
             customers=", ".join(merged.customers) or None, customer_note=merged.customer_note,
             raw={"documents": read, "found": merged.found, "derived": merged.derived, "api_calls": self.calls},
         )
+        # 청약이 끝났으면 증권발행실적보고서로 청약 결과·상장일을 채운다 (상장 앞두고 올리는 게시물용, 2026-10-28)
+        if facts.subscription_end and facts.subscription_end < date.today().isoformat():
+            try:
+                got = self.offering_result(d)
+            except Exception as e:  # noqa: BLE001
+                got = None
+                read.append(f"증권발행실적보고서:error:{type(e).__name__}")
+            if got:
+                rcept, res = got
+                facts = facts.model_copy(update={**res, "result_rcept_no": rcept,
+                                                  "listing_date": facts.listing_date or res.get("listing_date")})
+                read.append(f"{rcept}:증권발행실적보고서")
+                merged.found["offering_result"] = ", ".join(f"{k}={v}" for k, v in res.items())
+        return facts

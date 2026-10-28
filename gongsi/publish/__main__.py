@@ -181,7 +181,8 @@ def _rerender(post: store.Post, idx: int) -> None:
     video, err = None, None
     for q in hook.queries():  # 첫 검색어로 영상이 없으면 더 흔한 장면 검색어로
         try:
-            video = make_reel(hook.title, f"({b['line2']})" if b.get("line2") else "", hook.sub, q, post.dir / name)
+            video = make_reel(hook.title, f"({b['line2']})" if b.get("line2") else "", hook.sub, q, post.dir / name,
+                              thing=None if q == hook.video else "")
             break
         except Exception as e:  # noqa: BLE001
             err = e

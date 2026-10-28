@@ -75,6 +75,13 @@ class IpoFacts(BaseModel):
     revenue_mix: list[RevenueMix] = Field(default_factory=list)
     customers: str | None = None  # 주요 고객사 이름 쉼표로 (증권신고서 원문 그대로)
     customer_note: str | None = None  # 매출 비중 문장 (예: 매출의 75% 이상이 삼성디스플레이에서 나옴)
+    # 청약 결과 (증권발행실적보고서, 청약이 끝난 뒤에만): 일반투자자 배정·청약 수량, 건수, 금액, 균등 잔여 추첨 주식
+    retail_alloc: int | None = None
+    retail_qty: int | None = None
+    retail_applicants: int | None = None
+    retail_amount_krw: int | None = None
+    even_lottery_shares: int | None = None
+    result_rcept_no: str | None = None
 
     use_of_proceeds: list[UseOfProceeds] = Field(default_factory=list)
     risks: list[Risk] = Field(default_factory=list)

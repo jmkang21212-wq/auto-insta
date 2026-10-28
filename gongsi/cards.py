@@ -63,7 +63,33 @@ def pct(v: float | None) -> str:
 
 
 def ratio(v: float | None) -> str:
-    return "미정" if v is None else f"{v:,.1f}:1"
+    """경쟁률: 공시처럼 소수 둘째 자리까지, 끝의 0은 뗀다 (1041.02 → 1,041.02:1, 1134.5 → 1,134.5:1)"""
+    return "미정" if v is None else f"{v:,.2f}".rstrip("0").rstrip(".") + ":1"
+
+
+def kcount(n: int) -> str:
+    """큰 수를 한국식으로 (만 아래 반올림): 752,036,560 → '7억 5,204만'"""
+    eok, rest = divmod(n, 100_000_000)
+    man_ = round(rest / 10_000)
+    if man_ >= 10_000:
+        eok, man_ = eok + 1, 0
+    return " ".join(x for x in (f"{eok:,}억" if eok else "", f"{man_:,}만" if man_ else "") if x) or f"{n:,}"
+
+
+def kmoney(v: int) -> str:
+    """큰 금액을 한국식으로 (억 아래 반올림): 5,753,079,684,000 → '5조 7,531억'"""
+    jo, rest = divmod(v, 1_000_000_000_000)
+    eok = round(rest / 100_000_000)
+    if eok >= 10_000:
+        jo, eok = jo + 1, 0
+    return " ".join(x for x in (f"{jo:,}조" if jo else "", f"{eok:,}억" if eok else "") if x) or won(v)
+
+
+def retail_ratio(facts: IpoFacts) -> float | None:
+    """일반 청약 경쟁률 = 일반투자자 청약 수량 / 배정 수량 (증권발행실적보고서)"""
+    if facts.retail_qty and facts.retail_alloc:
+        return round(facts.retail_qty / facts.retail_alloc, 2)
+    return None
 
 
 @dataclass
@@ -94,6 +120,19 @@ def build(facts: IpoFacts, summary: Summary, today: date | None = None, rcept_no
           doc: str = "증권신고서") -> tuple[list[Card], dict[str, str]]:
     today = today or date.today()
     derived: dict[str, str] = {}
+    # 청약 결과(증권발행실적보고서) 계산값의 출처
+    rr = retail_ratio(facts)
+    if rr is not None:
+        for k in (f"{rr:g}", f"{rr:,.2f}".rstrip("0").rstrip(".")):
+            derived[k] = f"retail_qty {facts.retail_qty:,} / retail_alloc {facts.retail_alloc:,}"
+        for src, val in (("retail_qty", facts.retail_qty), ("retail_alloc", facts.retail_alloc)):
+            for part in re.findall(r"\d[\d,]*", kcount(val)):
+                derived.setdefault(part, f"kcount({src} {val:,})")
+                derived.setdefault(part.replace(",", ""), f"kcount({src} {val:,})")
+    if facts.retail_amount_krw:
+        for part in re.findall(r"\d[\d,]*", kmoney(facts.retail_amount_krw)):
+            derived.setdefault(part, f"kmoney(retail_amount {facts.retail_amount_krw:,})")
+            derived.setdefault(part.replace(",", ""), f"kmoney(retail_amount {facts.retail_amount_krw:,})")
     # 고객사 이름(3M 같은)과 매출 비중 문장의 숫자는 증권신고서 원문 문장 그대로라 출처로 남긴다
     for n in re.findall(r"\d[\d,]*(?:\.\d+)?", f"{facts.customers or ''} {facts.customer_note or ''}"):
         derived.setdefault(n, f"증권신고서 원문(주요 고객사): {facts.customer_note or facts.customers}")
@@ -407,20 +446,31 @@ def _eun(word: str) -> str:
     return "은" if _batchim(word) else "는"
 
 
-_BIZ_END = (("해요", "함"), ("돼요", "됨"), ("이에요", "임"), ("예요", "임"), ("있어요", "있음"), ("없어요", "없음"))
+_BIZ_END = (("공급해요", "공급함"), ("만들어요", "만듦"), ("쓰여요", "쓰임"), ("나와요", "나옴"), ("팔아요", "팖"), ("써요", "씀"),
+            ("해요", "함"), ("돼요", "됨"), ("이에요", "임"), ("예요", "임"), ("있어요", "있음"), ("없어요", "없음"), ("줘요", "줌"),
+            ("내요", "냄"), ("봐요", "봄"), ("와요", "옴"), ("가요", "감"), ("져요", "짐"))
 
 
-def plain_business(summary: Summary | None) -> str:
-    """사업 요약 2줄('…부품을' / '…만들어 공급해요')을 캡션 한 문장 음슴체로. 끝을 못 바꾸거나 숫자가 있으면 안 씀"""
-    if not summary or not summary.business_lines:
-        return ""
-    s = " ".join(l.strip() for l in summary.business_lines if l.strip()).rstrip(".!")
-    if re.search(r"\d", s):
-        return ""
+def _eumseum_line(s: str) -> str:
+    s = s.strip().rstrip(".!")
     for a, b in _BIZ_END:
         if s.endswith(a):
             return s[: -len(a)] + b
     return ""
+
+
+def plain_business(summary: Summary | None) -> str:
+    """사업 요약 2줄을 캡션 음슴체로. 두 줄이 한 문장('…부품을' / '…공급해요')이면 이어서, 각각 문장이면 '. '로 이어
+    wrap이 문장마다 '-' 줄로 나눈다. 끝을 못 바꾸거나 숫자가 있으면 안 씀"""
+    if not summary or not summary.business_lines:
+        return ""
+    lines = [l.strip() for l in summary.business_lines if l.strip()]
+    if any(re.search(r"\d", l) for l in lines):
+        return ""
+    if len(lines) > 1 and lines[0].rstrip(".!").endswith("요"):
+        parts = [_eumseum_line(l) for l in lines]
+        return ". ".join(parts) if all(parts) else ""
+    return _eumseum_line(" ".join(lines))
 
 
 def caption(facts: IpoFacts, rcept_no: str, summary: Summary | None = None, doc: str = "증권신고서",
@@ -442,6 +492,7 @@ def caption(facts: IpoFacts, rcept_no: str, summary: Summary | None = None, doc:
     band = f"{facts.band_low_krw:,}~{facts.band_high_krw:,}원" if has_band else ""
     brokers = broker_text(facts)
     post = facts.demand_ratio is not None
+    done = retail_ratio(facts) is not None  # 청약까지 끝남 (증권발행실적보고서): 상장 앞두고 올리는 게시물
     blocks: list[list[str]] = []
 
     def item(sign: str, text: str) -> list[str]:
@@ -459,7 +510,10 @@ def caption(facts: IpoFacts, rcept_no: str, summary: Summary | None = None, doc:
     first: list[str] = []
     if hook:
         first += wrap(hook.headline()) + (wrap(hook.explain) if hook.explain else [])
-        first += item("-", f"주인공은 {corp}" + (f", {facts.market} 상장 예정" if facts.market else ""))
+        if done and facts.listing_date:
+            first += item("-", f"주인공은 {corp}, {nb(kdate(facts.listing_date))} {facts.market or ''} 상장".replace("  ", " "))
+        else:
+            first += item("-", f"주인공은 {corp}" + (f", {facts.market} 상장 예정" if facts.market else ""))
     elif post:
         first.append(_fit(f"📢 {corp} 경쟁률 {ratio(facts.demand_ratio)} 나옴", f"📢 {corp} 수요예측 결과 나옴"))
     else:
@@ -467,7 +521,7 @@ def caption(facts: IpoFacts, rcept_no: str, summary: Summary | None = None, doc:
         ind = (facts.industry or "").strip()
         first.append(_fit(f"🔔 {ind} {corp}, {when} 청약 열림" if ind and when else "",
                           f"🔔 {corp}, {when} 청약 열림" if when else "", f"🔔 {corp} 공모주 청약 열림"))
-    if days:
+    if days and not done:
         first += item("-", f"청약은 {days}")
     if post:
         first += item("-", f"기관 경쟁률 {ratio(facts.demand_ratio)}")
@@ -490,6 +544,17 @@ def caption(facts: IpoFacts, rcept_no: str, summary: Summary | None = None, doc:
     if not post and has_band:
         first += item("-", f"희망 공모가 {band}")
     blocks.append(first)
+
+    # 1-2. 청약 결과 (청약이 끝난 뒤): 일반 청약 경쟁률, 건수, 금액, 균등 배정
+    if done:
+        res = ["🎯 청약 결과는?"]
+        res += item("-", f"일반 청약 경쟁률 약 {ratio(retail_ratio(facts))}")
+        res += wrap(f": 개인 몫 {kcount(facts.retail_alloc)} 주에 {kcount(facts.retail_qty)} 주가 신청됐다는 뜻")
+        if facts.retail_applicants:
+            res += item("-", f"청약 {facts.retail_applicants:,}건" + (f", 청약 금액 약 {kmoney(facts.retail_amount_krw)}원" if facts.retail_amount_krw else ""))
+        if facts.even_lottery_shares:
+            res += item("→", f"균등 배정으로 모두 1주씩 받았고, 남은 {facts.even_lottery_shares:,}주는 추첨으로 더 나눔")
+        blocks.append(res)
 
     # 2. 어떤 회사인지 (하는 일 + 신고서 실적). 하는 일은 카드 2장과 같은 사업 요약(근거 문장 대조를 통과한 것)을 음슴체로
     who: list[str] = []
@@ -527,7 +592,7 @@ def caption(facts: IpoFacts, rcept_no: str, summary: Summary | None = None, doc:
         money += item("-", f"증거금 환불은 {nb(kdate(facts.refund_date))}")
     if facts.listing_date:
         money += item("-", f"상장 예정일은 {nb(kdate(facts.listing_date))}")
-    if len(money) > 1:
+    if len(money) > 1 and not done:  # 청약이 끝났으면 청약 실무는 뺀다
         blocks.append(money)
 
     # 4. 모은 돈은 어디에 (신고서 '자금의 사용목적')
@@ -563,10 +628,11 @@ def caption(facts: IpoFacts, rcept_no: str, summary: Summary | None = None, doc:
         nxt += wrap(EXPLAIN["forecast"]) + item("→", "결과 나오면 경쟁률·확약 들고 다시 옴")
         blocks.append(nxt)
 
-    blocks.append([f"📄 DART {doc} {rcept_no}", credit, "※ 투자 권유 아님, 판단은 각자 몫"])
+    blocks.append([f"📄 DART {doc} {rcept_no}", f"📄 DART 발행실적보고서 {facts.result_rcept_no}" if done and facts.result_rcept_no else "",
+                   credit, "※ 투자 권유 아님, 판단은 각자 몫"])
     handle = BRAND.get("handle", "")  # 마무리: 고정 문구 + 다음 줄 계정 아이디 (2026-10-27 사용자 지정)
     blocks.append([BRAND.get("caption_cta", "🪄 공모주 분석, 제일 먼저 받아보기")] + ([f"@{handle}"] if handle else []))
-    tags = ["#공모주", "#공모주청약", "#" + corp.replace(" ", ""), "#청약일정", BRAND.get("hashtag", "")]
+    tags = ["#공모주", "#공모주청약", "#" + corp.replace(" ", ""), "#신규상장" if done else "#청약일정", BRAND.get("hashtag", "")]
     blocks.append([" ".join([t for t in dict.fromkeys(tags) if t and t != "#"][:5])])
     blocks = [[l for l in b if l] for b in blocks]  # 값이 없어 비는 줄은 빼서 덩어리 안에 빈 줄이 생기지 않게
     return "\n\n".join("\n".join(b) for b in blocks if b)

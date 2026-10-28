@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 from datetime import date, timedelta
 from pathlib import Path
@@ -148,7 +149,9 @@ def run(adapter: Adapter, date_from: str, date_to: str, only_rcept: str | None, 
             for i, h in enumerate(hooks if os.getenv("REELS", "1") != "0" else []):
                 for q in h.queries():  # 첫 검색어로 영상이 없으면 더 흔한 장면 검색어로 (2026-10-28)
                     try:
-                        reel_meta = make_reel(h.title, f"({second})" if second else "", h.sub, q, out / f"{d.rcept_no}_reel.mp4")
+                        # 첫 검색어는 비유 물건이 화면 주인공인지, 대체 검색어(흔한 장면)는 그 장면이 보이는지 비전이 확인
+                        reel_meta = make_reel(h.title, f"({second})" if second else "", h.sub, q, out / f"{d.rcept_no}_reel.mp4",
+                                              thing=None if q == h.video else "")
                         hook, chosen = h, i
                         break
                     except Exception as e:  # noqa: BLE001
@@ -173,7 +176,8 @@ def run(adapter: Adapter, date_from: str, date_to: str, only_rcept: str | None, 
             cap = cardmod.caption(facts, d.rcept_no, summary, doc, hook, credit="📷 자료 화면: Pixabay" if reel_meta else "")
             # 숫자·금지어 대조는 위험 덩어리를 뺀 판으로: 위험 소제목은 원문 그대로(인용), 쉬운 말 요약은 check_risks가 원문과 따로 대조
             cap_check = cardmod.caption(facts.model_copy(update={"risks": []}), d.rcept_no,
-                                        summary.model_copy(update={"risk_lines": []}), doc, hook).replace(d.rcept_no, "")
+                                        summary.model_copy(update={"risk_lines": []}), doc, hook)
+            cap_check = re.sub(r"\d{14}", "", cap_check)  # 출처 줄의 접수번호들(증권신고서·증권발행실적보고서)
             # 릴스 화면 둘째 줄 숫자(second)도 같은 기준으로 대조
             problems += [f"캡션: {p}" for p in check_numbers([cap_check, second], facts) if not any(f"'{k}'" in p for k in allowed_derived)]
             problems += [f"캡션: {p}" for p in check_forbidden([cap_check])]

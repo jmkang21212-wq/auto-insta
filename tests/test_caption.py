@@ -170,7 +170,12 @@ def test_business_line_in_company_block():
     cap = cards.caption(IpoFacts(**DONGWON), "20261023000331", s)
     assert "🏢 어떤 회사임?\n- 회전을 재는 자이로스코프의" in cap and check_caption_layout(cap) == []
     assert cards.plain_business(Summary(business_lines=["29년 된", "회사예요"], evidence=["a", "b"])) == ""
-    assert cards.plain_business(Summary(business_lines=["부품을", "만들어요"], evidence=["a", "b"])) == ""
+    assert cards.plain_business(Summary(business_lines=["부품을", "만들어요"], evidence=["a", "b"])) == "부품을 만듦"
+    assert cards.plain_business(Summary(business_lines=["부품을", "모아요"], evidence=["a", "b"])) == ""  # 모르는 끝은 안 씀
+    # 두 줄이 각각 문장이면 두 문장으로 (티앤이코리아, 2026-10-28)
+    two = Summary(business_lines=["오일 없이 도는 터보기계를 만들어요", "데이터센터와 수소차에도 쓰여요"], evidence=["a", "b"])
+    assert cards.plain_business(two) == "오일 없이 도는 터보기계를 만듦. 데이터센터와 수소차에도 쓰임"
+    assert "- 오일 없이 도는 터보기계를 만듦\n- 데이터센터와 수소차에도 쓰임" in cards.caption(IpoFacts(**DONGWON), "20261023000331", two)
 
 
 def test_final_terms_filings_and_post_only_default():
