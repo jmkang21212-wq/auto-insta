@@ -202,6 +202,12 @@ def cmd_poll(args) -> None:
         if post.meta["status"] in ("published",):
             telegram.ack(cq, "이미 게시된 글이에요")
             continue
+        # 다시 보낸 게시물: 예전 메시지의 버튼은 무시 (2026-10-29 '확약 0%였던 건 취소, 새로 승인한 것만')
+        cur = (post.meta.get("telegram") or {}).get("message_id")
+        if cur and (cq.get("message") or {}).get("message_id") not in (None, cur):
+            telegram.ack(cq, "예전 버전 메시지예요. 가장 최근에 보낸 메시지에서 눌러 주세요")
+            log("poll", corp=post.meta["corp"], rcept_no=rcept, decision=decision, ignored="old message")
+            continue
         if decision.startswith("h"):  # 다른 훅으로 릴스·캡션을 다시 만들고 다시 승인 요청
             telegram.ack(cq, f"{decision[1:]}번 훅으로 다시 만드는 중…")
             try:
