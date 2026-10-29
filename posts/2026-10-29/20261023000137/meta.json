@@ -3,7 +3,7 @@
  "rcept_no": "20261023000137",
  "date": "2026-10-29",
  "n": 6,
- "status": "approved",
+ "status": "published",
  "source_run": "run1",
  "format": "both",
  "reel": "reel.mp4",
@@ -27,5 +27,31 @@
  "instagram_failed_prev": {
   "error": "instagram me: (200/None) API access blocked.",
   "attempts": 3
+ },
+ "instagram_carousel": {
+  "media_id": "17935052139146603",
+  "permalink": "https://www.instagram.com/p/DfEvmG6GwuM/",
+  "children": [
+   "17890979745468914",
+   "17890979778468914",
+   "17890979799468914",
+   "17890979826468914",
+   "17890979850468914",
+   "17890979877468914"
+  ],
+  "published_at": "2026-10-29",
+  "by": "slot"
+ },
+ "instagram": {
+  "media_id": "18109883396218278",
+  "permalink": "https://www.instagram.com/reel/DfEvtW3jtDu/",
+  "container": "17890979991468914",
+  "format": "reel",
+  "host": "graph.facebook.com",
+  "audio_id": "3661927097298204",
+  "audio_title": "Today Has a Little Swing",
+  "audio_artist": "EMMA JAZZ",
+  "published_at": "2026-10-29",
+  "by": "slot"
  }
 }
