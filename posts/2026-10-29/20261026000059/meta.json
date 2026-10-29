@@ -3,14 +3,14 @@
  "rcept_no": "20261026000059",
  "date": "2026-10-29",
  "n": 6,
- "status": "failed",
+ "status": "approved",
  "source_run": "run1",
  "format": "carousel",
  "reel": null,
  "phase": "listing",
  "subscription_start": "2026-10-21",
  "market": "KR",
- "publish_at": "2026-10-29T13:00:00+09:00",
+ "publish_at": null,
  "fix": "2026-10-29 확약 비율 바로잡음(카드·캡션 다시 만듦)",
  "telegram_prev": {
   "message_id": 71,
@@ -22,7 +22,7 @@
   "chat_id": 8647980564,
   "sent_at": "2026-10-29T11:52:17.952584+09:00"
  },
- "instagram": {
+ "instagram_failed_prev": {
   "error": "instagram me: (200/None) API access blocked.",
   "attempts": 3
  }
