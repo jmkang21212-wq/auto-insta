@@ -21,5 +21,9 @@
   "message_id": 87,
   "chat_id": 8647980564,
   "sent_at": "2026-10-29T11:52:17.952584+09:00"
+ },
+ "instagram": {
+  "error": "instagram me: (200/None) API access blocked.",
+  "attempts": 1
  }
 }
