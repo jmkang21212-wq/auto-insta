@@ -453,8 +453,10 @@ def parse(text: str) -> DocFacts:
         total_idx = -1
         for j in range(i, min(i + 80, len(lines))):
             c = _cells(lines[j])
-            if c and c[0].replace(" ", "") == "합계" and len(c) >= 3:
-                total_idx = j  # 마지막 합계(외국+합계 표)
+            # 마지막 합계(외국+합계 표). 단 바로 윗줄이 '…확약'(보통 '미확약')인 합계만: 80줄 안에 다른 표(배정 등)의 합계가 있으면
+            # 그걸 잡아 확약 0%로 읽던 문제 (2026-10-29 인텔리빅스: 실제 6.14%)
+            if c and c[0].replace(" ", "") == "합계" and len(c) >= 3 and j > i and "확약" in (_cells(lines[j - 1]) or [""])[0]:
+                total_idx = j
         if total_idx > 0:
             # 표 머리에 '합계' 열이 있으면 마지막 (건수|수량|신청가격) 묶음의 수량 = 합계. 없으면(국내 표만) 묶음별 수량을 더한다
             header_total = any("합계" in ln.replace(" ", "") and "구분" in ln.replace(" ", "") for ln in lines[max(i, total_idx - 10):total_idx])
@@ -474,7 +476,9 @@ def parse(text: str) -> DocFacts:
                     locked += q
                     rows.append(f"{c[0]}={q}")
             if total:
-                f.lockup_ratio_pct = round(locked / total * 100, 2)
+                r = locked / total * 100
+                # 0.01% 미만은 0%로 반올림되면 '확약 0%'로 오해되니 유효숫자 1자리 (2026-10-29 크리에이츠 5,000주 = 0.002%)
+                f.lockup_ratio_pct = round(r, 2) if r == 0 or r >= 0.01 else float(f"{r:.1g}")
                 f.derived[f"{f.lockup_ratio_pct:g}"] = f"lockup: ({' + '.join(rows)}) / {total} * 100"
                 f.found["lockup"] = f"합계 수량 {total}, 확약 {locked}"
 

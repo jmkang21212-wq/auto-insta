@@ -143,6 +143,23 @@ def test_decks_full_first_then_short_with_valuation_card():
     v = next(c for c in cards.build(f, s, date(2026, 10, 28), "x", phase="post")[0] if c.role == "valuation")
     assert v.title == "21,304원" and any("적정주가는 아니라고" in l for l in v.lines)
 
+
+def test_lockup_ratio_ignores_later_total_rows_and_keeps_tiny_values():
+    """2026-10-29: 확약 표 뒤 80줄 안의 다른 표 '합 계'를 잡아 0%로 읽던 문제(인텔리빅스 실제 6.14%),
+    0.01% 미만을 0%로 반올림하던 문제(크리에이츠 5,000주 = 0.002%)"""
+    from gongsi.adapters.dart_doc import parse
+    lines = ["요약정보", "(다) 의무보유 확약기간별 수요예측 참여내역",
+             "| 구 분 | 외국 기관투자자 | 합 계",
+             "| 6개월 확약 | - | - | - | 16 | 21,397,000 | 9,000",
+             "| 1개월 확약 | - | - | - | 14 | 15,340,000 | 9,000",
+             "| 미확약 | 68 | 54,156,000 | 9,038 | 2,221 | 2,277,579,000 | 9,016",
+             "| 합 계 | 70 | 55,603,000 | 9,055 | 2,251 | 2,314,316,000 | 9,016",
+             "(라) 배정 내역", "| 구분 | 배정 | 비율", "| 기관 | 100 | 10", "| 합 계 | 100 | 100"]
+    f = parse("\n".join(lines))
+    assert f.lockup_ratio_pct == round((21397000 + 15340000) / 2314316000 * 100, 2), f.lockup_ratio_pct
+    tiny = [l.replace("21,397,000", "5,000").replace("15,340,000", "-") for l in lines]
+    assert parse("\n".join(tiny)).lockup_ratio_pct == 0.0002
+
 if __name__ == "__main__":
     tests = [v for k, v in dict(globals()).items() if k.startswith("test_")]
     for t in tests:
