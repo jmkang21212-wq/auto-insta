@@ -286,9 +286,12 @@ def _git_sync(msg: str) -> None:
         return
     root = str(store.ROOT)
     subprocess.run(["git", "add", "posts", "state"], cwd=root, check=False)
-    if subprocess.run(["git", "diff", "--cached", "--quiet"], cwd=root).returncode != 0:
+    changed = subprocess.run(["git", "diff", "--cached", "--quiet"], cwd=root).returncode != 0
+    if changed:
         subprocess.run(["git", "commit", "-q", "-m", msg], cwd=root, check=False)
-        subprocess.run(["git", "pull", "-q", "--rebase", "origin", os.getenv("GITHUB_REF_NAME", "main")], cwd=root, check=False)
+    # 바뀐 게 없어도 당겨 온다: 감시 도중 다시 만든 카드·캡션(손으로 고친 것 포함)을 게시 때 쓰도록 (2026-10-29)
+    subprocess.run(["git", "pull", "-q", "--rebase", "origin", os.getenv("GITHUB_REF_NAME", "main")], cwd=root, check=False)
+    if changed:
         subprocess.run(["git", "push", "-q"], cwd=root, check=False)
 
 
