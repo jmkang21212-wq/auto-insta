@@ -1,0 +1,14 @@
+{
+ "corp": "인텔리빅스",
+ "rcept_no": "20261026000059",
+ "date": "2026-10-29",
+ "n": 6,
+ "status": "pending",
+ "source_run": "run1",
+ "format": "carousel",
+ "reel": null,
+ "phase": "listing",
+ "subscription_start": "2026-10-21",
+ "market": "KR",
+ "publish_at": "2026-10-29T13:00:00+09:00"
+}

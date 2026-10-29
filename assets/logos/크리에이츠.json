@@ -1,0 +1,22 @@
+{
+ "corp": "크리에이츠",
+ "homepage": "http://www.mycreatz.com",
+ "source": "https://mycreatz.com/images/common/logo.png",
+ "alt": "og:image",
+ "picked_by": "claude",
+ "tone": "light",
+ "candidates": [
+  "https://mycreatz.com/images/common/logo.png",
+  "https://mycreatz.com/images/main/main_business_logo01.png",
+  "https://mycreatz.com/images/main/main_business_logo02.png",
+  "https://mycreatz.com/images/main/uneekor_logo.png?ver=260731",
+  "https://mycreatz.com/data/goodsImages/ADD_GOODS1_178461083120260722115850.png",
+  "https://mycreatz.com/data/goodsImages/ADD_GOODS1_1784688735.png",
+  "https://mycreatz.com/data/goodsImages/ADD_GOODS1_1784688850.png",
+  "https://mycreatz.com/data/goodsImages/ADD_GOODS1_1784688888.png",
+  "https://mycreatz.com/data/goodsImages/ADD_GOODS1_1784688926.png",
+  "https://mycreatz.com/data/goodsImages/ADD_GOODS1_1784688969.png",
+  "https://mycreatz.com/data/goodsImages/ADD_GOODS1_178468900620260729153337.png",
+  "https://mycreatz.com/data/goodsImages/ADD_GOODS1_178468904520260729153512.png"
+ ]
+}
