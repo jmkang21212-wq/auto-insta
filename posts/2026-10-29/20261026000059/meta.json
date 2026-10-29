@@ -3,7 +3,7 @@
  "rcept_no": "20261026000059",
  "date": "2026-10-29",
  "n": 6,
- "status": "approved",
+ "status": "published",
  "source_run": "run1",
  "format": "carousel",
  "reel": null,
@@ -25,5 +25,19 @@
  "instagram_failed_prev": {
   "error": "instagram me: (200/None) API access blocked.",
   "attempts": 3
+ },
+ "instagram": {
+  "media_id": "17973431088174649",
+  "permalink": "https://www.instagram.com/p/DfEjo0hG0Nn/",
+  "children": [
+   "17890963860468914",
+   "17890963881468914",
+   "17890963947468914",
+   "17890963986468914",
+   "17890964067468914",
+   "17890964115468914"
+  ],
+  "published_at": "2026-10-29",
+  "by": "slot"
  }
 }
