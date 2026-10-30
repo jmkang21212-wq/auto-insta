@@ -3,7 +3,7 @@
  "rcept_no": "20261027000139",
  "date": "2026-10-30",
  "n": 6,
- "status": "approved",
+ "status": "blocked",
  "source_run": "run1",
  "format": "both",
  "reel": "reel.mp4",
@@ -16,5 +16,8 @@
   "chat_id": 8647980564,
   "format": "both",
   "sent_at": "2026-10-30T11:33:43.444270+09:00"
+ },
+ "instagram": {
+  "attempts": 0
  }
 }

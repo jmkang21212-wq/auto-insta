@@ -3,7 +3,7 @@
  "rcept_no": "20261029000504",
  "date": "2026-10-30",
  "n": 6,
- "status": "approved",
+ "status": "blocked",
  "source_run": "run1",
  "format": "both",
  "reel": "reel.mp4",
@@ -19,6 +19,6 @@
  },
  "instagram": {
   "error": "instagram me: (200/None) API access blocked.",
-  "attempts": 2
+  "attempts": 0
  }
 }
