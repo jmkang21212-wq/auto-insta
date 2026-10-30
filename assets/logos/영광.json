@@ -1,0 +1,22 @@
+{
+ "corp": "영광",
+ "homepage": "http://ykmc.com",
+ "source": "https://ykmc.com/theme/core/images/logo.svg",
+ "alt": "YoungKwang Co., Ltd.",
+ "picked_by": "claude",
+ "tone": "dark",
+ "candidates": [
+  "https://ykmc.com/theme/core/images/logo.svg",
+  "https://ykmc.com/theme/core/images/_p01.jpg",
+  "https://ykmc.com/theme/core/images/_p02.jpg",
+  "https://ykmc.com/theme/core/images/og_image.jpg",
+  "https://ykmc.com/theme/core/images/_p03.jpg",
+  "https://ykmc.com/theme/core/images/_index_bg01.jpg",
+  "https://ykmc.com/theme/core/images/_index_bg02.jpg",
+  "https://ykmc.com/theme/core/images/_index_bg03.jpg",
+  "https://ykmc.com/theme/core/images/favicon.png",
+  "https://ykmc.com/data/file/index_project/thumb-77e7497e2c6f381ea0784e875c766a60_lovYNpmd_32c24f8337b5095f5f0b7f8215f65c54812e3beb_640x.png",
+  "https://ykmc.com/data/file/index_project/thumb-77e7497e2c6f381ea0784e875c766a60_hSMIwsrV_50b74d718c57592e55b5077c0c36c338dc22c95b_640x.jpg",
+  "https://ykmc.com/data/file/index_project/thumb-77e7497e2c6f381ea0784e875c766a60_pgbfKGZ0_d5a7f6f9bd21a4ad408e3ad03526e6f1b88cf014_640x.jpg"
+ ]
+}
