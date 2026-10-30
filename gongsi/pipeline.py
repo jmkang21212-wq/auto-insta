@@ -253,6 +253,9 @@ def run(adapter: Adapter, date_from: str, date_to: str, only_rcept: str | None, 
                     db.add_followup(db.conn.execute("SELECT id FROM disclosure WHERE rcept_no=?", (d.rcept_no,)).fetchone()["id"],
                                     "listing_result", facts.listing_date)
                 log("render", corp=d.corp_name, files=[p.name for p in paths], images=image_log, caption_file=f"{d.rcept_no}_caption.txt")
+                missing = [n for n, how in image_log.items() if how.replace("background=", "").startswith("none")]
+                if missing:
+                    _tell(f"⚠️ {d.corp_name}: 카드 사진을 못 구해 기본 그라데이션으로 나감 (카드 {', '.join(map(str, missing))}). 검토 때 확인 필요")
                 # 게시 단계(python -m gongsi.publish stage)가 읽는 목록
                 with (settings.out_dir / "produced.jsonl").open("a", encoding="utf-8") as f:
                     f.write(json.dumps({"run": run_id, "rcept_no": d.rcept_no, "corp": d.corp_name, "date": today.isoformat(),

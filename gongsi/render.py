@@ -55,6 +55,10 @@ def render(cards: list[Card], corp: str, industry: str, out_dir: Path, prefix: s
 
         # 정보형 카드(3~7·9·10)의 흐린 배경은 1장 전경과 다른 사진으로 (card_n=0). 이미지형 카드는 1·2·8
         bg_path, bg_how = illustration(0, industry)
+        if bg_how.startswith("none"):  # 배경을 못 구하면 1장 사진이라도 흐리게 깐다
+            alt_path, alt_how = illustration(1, industry)
+            if not alt_how.startswith("none"):
+                bg_path, bg_how = alt_path, f"hero 사진 재사용 ({bg_how[:120]})"
         bg_uri = data_uri(bg_path)
         image_log[0] = f"background={bg_how}"
         from gongsi.logos import logo_info
@@ -65,6 +69,9 @@ def render(cards: list[Card], corp: str, industry: str, out_dir: Path, prefix: s
             image = bg_uri
             if c.kind == "image":
                 img_path, how = illustration({"hero": 1, "about": 2, "risk": 8}.get(c.role, c.n), industry)
+                if how.startswith("none") and not bg_how.startswith("none"):
+                    # 사진 후보가 비전 판정에서 모두 떨어졌을 때 그라데이션 대신, 이미 판정을 통과한 배경 사진을 쓴다
+                    img_path, how = bg_path, f"배경 사진 재사용 ({how[:120]})"
                 image, image_log[c.n] = data_uri(img_path), how
             html = tpl.render(card=c, corp=corp, w=settings.card_width, h=settings.card_height,
                               image=image, fonts=fonts, logo=logo_uri, logo_tone=logo_tone, total=len(cards))
