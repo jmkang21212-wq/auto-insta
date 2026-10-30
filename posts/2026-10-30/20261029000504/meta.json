@@ -20,5 +20,6 @@
  "instagram": {
   "error": "instagram me: (200/None) API access blocked.",
   "attempts": 0
- }
+ },
+ "blocked_at": "2026-10-30T13:01:00+09:00"
 }

@@ -49,6 +49,19 @@ def _publish(post: store.Post, how: str) -> bool:
         else:
             res = instagram.publish_carousel(post.urls, post.caption)
     except Exception as e:
+        if "API access blocked" in str(e):
+            # Meta가 앱·계정 접근을 막은 것 (2026-10-30 두 번째). 재시도해 봐야 같은 실패라 횟수를 쓰지 않고 멈춰 두고,
+            # 감시가 15분마다 접근이 풀렸는지 확인해 풀리면 approved로 되돌려 이어서 올린다
+            first = not store.all_posts("blocked")
+            post.meta["status"] = "blocked"
+            post.meta["blocked_at"] = slots.now_kst().isoformat()
+            post.meta.setdefault("instagram", {})["error"] = str(e)[:500]
+            post.save()
+            log("publish", corp=post.meta["corp"], rcept_no=post.rcept_no, ok=False, blocked=True)
+            if first:
+                _safe_notify("⛔ Meta가 API 접근을 막아 게시를 멈췄어요. 인스타그램 앱에서 계정 확인(보안 확인) 해 주세요.\n"
+                             "풀리면 15분 안에 알아채고 자동으로 이어서 올려요.")
+            return False
         # 3번까지는 approved로 남겨 다음 확인 때 다시 (둘 다 게시에서 캐러셀만 올라간 경우 릴스만 다시 올라감)
         attempts = post.meta.get("instagram", {}).get("attempts", 0) + 1
         post.meta["status"] = "approved" if attempts < 3 else "failed"
@@ -234,10 +247,39 @@ def cmd_poll(args) -> None:
             continue
         telegram.ack(cq, "게시 중…")
         _publish(post, "telegram")
+    _unblock()
     # 승인된 것 가운데 시간이 된 것 게시 (+ 게시에 실패해 approved 로 남은 것 재시도, 최대 3회)
     for post in store.all_posts("approved"):
         if slots.due(post.meta.get("publish_at")) and post.meta.get("instagram", {}).get("attempts", 0) < 3:
             _publish(post, "slot" if not post.meta.get("instagram") else "retry")
+
+
+def _unblock() -> None:
+    """차단으로 멈춘 게시물: 15분마다 인스타 접근을 확인해 풀렸으면 approved로 되돌린다 (시간이 지난 건 바로 올라감)"""
+    blocked = store.all_posts("blocked")
+    if not blocked:
+        return
+    f = store.ROOT / "state" / "block_check.json"
+    now = slots.now_kst()
+    try:
+        last = slots.parse(json.loads(f.read_text(encoding="utf-8"))["at"])
+        if (now - last).total_seconds() < 15 * 60:
+            return
+    except Exception:
+        pass
+    f.parent.mkdir(parents=True, exist_ok=True)
+    f.write_text(json.dumps({"at": now.isoformat()}), encoding="utf-8")
+    try:
+        instagram.whoami()
+    except Exception as e:
+        log("unblock", still_blocked=True, error=str(e)[:200])
+        return
+    for post in blocked:
+        post.meta["status"] = "approved"
+        post.meta.pop("blocked_at", None)
+        post.save()
+    log("unblock", resumed=[p.rcept_no for p in blocked])
+    _safe_notify("✅ 인스타 API 접근이 풀려서 멈췄던 게시물을 다시 올려요: " + ", ".join(p.meta["corp"] for p in blocked))
 
 
 def _mark_video(post: store.Post) -> None:
@@ -308,7 +350,7 @@ def cmd_watch(args) -> None:
     while True:
         cmd_poll(args)
         _git_sync(f"posts: watch {time.strftime('%F %H:%M')}")
-        waiting = [p for p in store.all_posts() if p.meta.get("status") in ("pending", "approved")]
+        waiting = [p for p in store.all_posts() if p.meta.get("status") in ("pending", "approved", "blocked")]
         if not waiting or time.time() > deadline:
             log("watch", waiting=[p.rcept_no for p in waiting], done=not waiting)
             if waiting:
@@ -328,6 +370,8 @@ def _chain(waiting: list[store.Post]) -> None:
     def worth(p: store.Post) -> bool:
         if p.meta.get("status") == "approved":
             return True
+        if p.meta.get("status") == "blocked":  # 차단이 하루 넘게 이어지면 감시를 이어 걸지 않는다 (풀린 뒤 손으로 다시 시작)
+            return (now - slots.parse(p.meta.get("blocked_at") or now.isoformat())).total_seconds() < 24 * 3600
         sent = (p.meta.get("telegram") or {}).get("sent_at")
         return not sent or (now - slots.parse(sent)).total_seconds() < 20 * 3600
     if not any(worth(p) for p in waiting):

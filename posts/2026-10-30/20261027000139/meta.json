@@ -18,6 +18,8 @@
   "sent_at": "2026-10-30T11:33:43.444270+09:00"
  },
  "instagram": {
-  "attempts": 0
- }
+  "attempts": 0,
+  "error": "instagram me: (200/None) API access blocked."
+ },
+ "blocked_at": "2026-10-30T13:01:00+09:00"
 }

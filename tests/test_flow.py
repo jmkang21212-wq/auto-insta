@@ -160,6 +160,37 @@ def test_lockup_ratio_ignores_later_total_rows_and_keeps_tiny_values():
     tiny = [l.replace("21,397,000", "5,000").replace("15,340,000", "-") for l in lines]
     assert parse("\n".join(tiny)).lockup_ratio_pct == 0.0002
 
+
+def test_api_block_pauses_without_using_attempts_and_resumes():
+    """Meta 'API access blocked': 횟수를 쓰지 않고 blocked로 멈춤, 접근이 돌아오면 approved로 되돌림"""
+    from gongsi.publish import __main__ as pub, instagram, store
+    notes = []
+    with tempfile.TemporaryDirectory(dir=str(store.ROOT)) as tmp:
+        d = Path(tmp)
+        (d / "01.jpg").write_bytes(b"x")
+        (d / "caption.txt").write_text("판", encoding="utf-8")
+        post = store.Post(d, {"corp": "시험", "rcept_no": "1", "date": "2026-10-30", "n": 1, "status": "approved", "format": "carousel"})
+        post.save()
+        def blocked(urls, cap):
+            raise RuntimeError("instagram me: (200/None) API access blocked.")
+        old = (instagram.publish_carousel, instagram.whoami, pub._safe_notify, store.all_posts, store.ROOT)
+        instagram.publish_carousel, pub._safe_notify = blocked, notes.append
+        store.all_posts = lambda status=None: [post] if status in (None, post.meta["status"]) else []
+        try:
+            assert pub._publish(post, "slot") is False
+            assert post.meta["status"] == "blocked" and post.meta["instagram"].get("attempts", 0) == 0
+            instagram.whoami = lambda: (_ for _ in ()).throw(RuntimeError("API access blocked."))
+            store.ROOT = d
+            pub._unblock()
+            assert post.meta["status"] == "blocked"
+            (d / "state" / "block_check.json").unlink()
+            instagram.whoami = lambda: {"user_id": "1"}
+            pub._unblock()
+            assert post.meta["status"] == "approved"
+        finally:
+            instagram.publish_carousel, instagram.whoami, pub._safe_notify, store.all_posts, store.ROOT = old
+        assert len(notes) == 2, notes
+
 if __name__ == "__main__":
     tests = [v for k, v in dict(globals()).items() if k.startswith("test_")]
     for t in tests:
