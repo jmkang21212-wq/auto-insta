@@ -26,7 +26,7 @@ jobs:
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
       IG_USER_ID: ${{ secrets.IG_USER_ID }}
       IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
-      FB_USER_TOKEN: ${{ secrets.FB_USER_TOKEN }}
+      # FB_USER_TOKEN: ${{ secrets.FB_USER_TOKEN }}   # 2026-10-31 끔: 페이스북 토큰을 쓴 뒤 이틀 연속 Meta 차단. 다시 켜려면 주석 해제 (릴스 음악)
       IG_FB_USER_ID: ${{ secrets.IG_FB_USER_ID }}
       SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}   # 미국 공모주(EDGAR): '이름 연락이메일'
       GITHUB_TOKEN: ${{ github.token }}

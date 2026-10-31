@@ -3,23 +3,18 @@
  "rcept_no": "20261027000139",
  "date": "2026-10-30",
  "n": 6,
- "status": "blocked",
+ "status": "approved",
  "source_run": "run1",
  "format": "both",
  "reel": "reel.mp4",
  "phase": "listing",
  "subscription_start": "2026-10-22",
  "market": "KR",
- "publish_at": "2026-10-30T15:00:00+09:00",
+ "publish_at": "2026-10-31T16:10:00+09:00",
  "telegram": {
   "message_id": 125,
   "chat_id": 8647980564,
   "format": "both",
   "sent_at": "2026-10-30T11:33:43.444270+09:00"
- },
- "instagram": {
-  "attempts": 0,
-  "error": "instagram me: (200/None) API access blocked."
- },
- "blocked_at": "2026-10-30T13:01:00+09:00"
+ }
 }
