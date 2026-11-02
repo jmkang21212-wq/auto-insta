@@ -3,7 +3,7 @@
  "rcept_no": "20261030000467",
  "date": "2026-11-02",
  "n": 6,
- "status": "approved",
+ "status": "published",
  "source_run": "run1",
  "format": "both",
  "reel": "reel.mp4",
@@ -16,5 +16,28 @@
   "chat_id": 8647980564,
   "format": "both",
   "sent_at": "2026-11-02T11:01:07.670383+09:00"
+ },
+ "instagram_carousel": {
+  "media_id": "18117466424107742",
+  "permalink": "https://www.instagram.com/p/DfOnWBLFiuV/",
+  "children": [
+   "17891790039468914",
+   "17891790057468914",
+   "17891790075468914",
+   "17891790096468914",
+   "17891790117468914",
+   "17891790138468914"
+  ],
+  "published_at": "2026-11-02",
+  "by": "slot"
+ },
+ "instagram": {
+  "media_id": "18131708602695101",
+  "permalink": "https://www.instagram.com/reel/DfOnawFBWml/",
+  "container": "17891790405468914",
+  "format": "reel",
+  "audio_id": null,
+  "published_at": "2026-11-02",
+  "by": "slot"
  }
 }
