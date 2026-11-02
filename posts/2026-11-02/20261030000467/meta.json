@@ -1,0 +1,14 @@
+{
+ "corp": "넥스아이",
+ "rcept_no": "20261030000467",
+ "date": "2026-11-02",
+ "n": 6,
+ "status": "pending",
+ "source_run": "run1",
+ "format": "both",
+ "reel": "reel.mp4",
+ "phase": "post",
+ "subscription_start": "2026-11-03",
+ "market": "KR",
+ "publish_at": "2026-11-02T15:00:00+09:00"
+}

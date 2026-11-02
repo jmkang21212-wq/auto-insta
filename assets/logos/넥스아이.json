@@ -1,0 +1,22 @@
+{
+ "corp": "넥스아이",
+ "homepage": "http://www.nex-i.co.kr",
+ "source": "http://nex-i.co.kr/resource/usr/image/logo_wh.svg",
+ "alt": "NEX-I",
+ "picked_by": "score",
+ "tone": "light",
+ "candidates": [
+  "http://nex-i.co.kr/resource/usr/image/logo_wh.svg",
+  "http://nex-i.co.kr/resource/usr/image/logo_f.svg",
+  "http://nex-i.co.kr/resource/usr/image/icon_close.svg",
+  "http://nex-i.co.kr/resource/usr/image/og_image.png",
+  "http://nex-i.co.kr/download/view/z1RQiR1F1y3Aan3JGXQuN4T3mq4H9b8",
+  "http://nex-i.co.kr/download/view/mH3j6mhY1TwIXWf6LdPeL1FAwH5gvgX0",
+  "http://nex-i.co.kr/download/view/yd1pAEEbGLV97Em8a97qxI1pEQwRJX59",
+  "http://nex-i.co.kr/download/view/Dc2MenGBOwnlOgRBIeYKMkahdavHA9D",
+  "http://nex-i.co.kr/resource/favicon/apple-touch-icon.png",
+  "http://nex-i.co.kr/resource/favicon/favicon.ico",
+  "http://nex-i.co.kr/resource/favicon/android-chrome-192x192.png",
+  "http://nex-i.co.kr/resource/favicon/android-chrome-512x512.png"
+ ]
+}

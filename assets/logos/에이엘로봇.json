@@ -1,0 +1,22 @@
+{
+ "corp": "에이엘로봇",
+ "homepage": "https://al-robot.com/ko",
+ "source": "https://al-robot.com/cdn/shop/files/AL-Robots_Logo_Horizontal.png?v=1718740411&width=330",
+ "alt": "",
+ "picked_by": "claude",
+ "tone": "dark",
+ "candidates": [
+  "https://al-robot.com/cdn/shop/files/AL-Robots_Logo_Horizontal.png?v=1718740411&width=330",
+  "https://al-robot.com/cdn/shop/files/AL-Robots_Logo_Vertical_d6b8f10f-bf64-4d1c-984e-b2774bd3a087.svg?v=1718663522&width=171",
+  "https://al-robot.com/cdn/shop/files/AL-Robots_W-Logo_Horizontal_02.png?v=1718740565&width=329",
+  "https://al-robot.com/cdn/shop/files/AL-Robots_Logo_Logomark.png?crop=center&height=32&v=1718740599&width=32",
+  "http://al-robot.com/cdn/shop/files/basic_thum1_30fbf181-21c7-4343-987f-3f3b06085260.png?v=1745995129",
+  "https://al-robot.com/cdn/shop/files/Roboticsx150.png?v=1719415524&width=151",
+  "https://al-robot.com/cdn/shop/files/Manufacturingx150.png?v=1719415525&width=151",
+  "https://al-robot.com/cdn/shop/files/Medicalx150.png?v=1719415525&width=151",
+  "https://al-robot.com/cdn/shop/files/R_Dx150.png?v=1719415525&width=151",
+  "https://al-robot.com/cdn/shop/files/Aerospacex150.png?v=1719415525&width=151",
+  "https://al-robot.com/cdn/shop/files/Biomechanicsx150.png?v=1719415525&width=151",
+  "https://al-robot.com/cdn/shop/articles/basic_thum1_71914936-35ed-4804-8b87-f0a990a95915.png?v=1786680787&width=960"
+ ]
+}

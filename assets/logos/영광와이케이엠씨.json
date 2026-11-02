@@ -1,0 +1,22 @@
+{
+ "corp": "영광와이케이엠씨",
+ "homepage": "https://www.ykmc.kr/",
+ "source": "https://www.ykmc.kr/assets/images/main-logo-blue.png",
+ "alt": "영광 YKMC 로고",
+ "picked_by": "claude",
+ "tone": "dark",
+ "candidates": [
+  "https://www.ykmc.kr/assets/images/main-logo-white.png",
+  "https://www.ykmc.kr/assets/images/main-logo-blue.png",
+  "https://www.ykmc.kr/assets/images/slide-logo4.png",
+  "https://www.ykmc.kr/assets/images/slide-logo1.png",
+  "https://www.ykmc.kr/assets/images/slide-logo2.png",
+  "https://www.ykmc.kr/assets/images/slide-logo3.png",
+  "https://www.ykmc.kr/assets/images/footer-logo.png",
+  "https://www.ykmc.kr/assets/images/og-seo.png",
+  "https://www.ykmc.kr/FileData/news/20261030115226_316.jpg",
+  "https://www.ykmc.kr/assets/images/biz_img1.png",
+  "https://www.ykmc.kr/assets/images/biz_img2.png",
+  "https://www.ykmc.kr/assets/images/biz_img3.png"
+ ]
+}

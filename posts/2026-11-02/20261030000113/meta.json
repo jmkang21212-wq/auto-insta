@@ -1,0 +1,14 @@
+{
+ "corp": "동원파츠",
+ "rcept_no": "20261030000113",
+ "date": "2026-11-02",
+ "n": 5,
+ "status": "pending",
+ "source_run": "run1",
+ "format": "carousel",
+ "reel": null,
+ "phase": "post",
+ "subscription_start": "2026-11-02",
+ "market": "KR",
+ "publish_at": "2026-11-02T19:00:00+09:00"
+}
