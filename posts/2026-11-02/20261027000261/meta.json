@@ -10,5 +10,11 @@
  "phase": "listing",
  "subscription_start": "2026-10-22",
  "market": "KR",
- "publish_at": null
+ "publish_at": null,
+ "telegram": {
+  "message_id": 151,
+  "chat_id": 8647980564,
+  "format": "both",
+  "sent_at": "2026-11-02T11:00:56.520194+09:00"
+ }
 }

@@ -10,5 +10,10 @@
  "phase": "post",
  "subscription_start": "2026-11-02",
  "market": "KR",
- "publish_at": "2026-11-02T19:00:00+09:00"
+ "publish_at": "2026-11-02T19:00:00+09:00",
+ "telegram": {
+  "message_id": 157,
+  "chat_id": 8647980564,
+  "sent_at": "2026-11-02T11:00:59.214567+09:00"
+ }
 }
