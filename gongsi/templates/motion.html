@@ -56,6 +56,7 @@ html,body{width:1080px;height:1920px;overflow:hidden;background:var(--bg);font-f
     <span id="termTxt" style="display:inline-block;white-space:nowrap;background:rgba(11,13,18,.78);border:4px solid var(--gold);color:var(--ink);padding:22px 44px;border-radius:26px;font-weight:900;font-size:66px;box-shadow:0 20px 60px rgba(0,0,0,.5)"></span></div></div>
   <div id="partTags"></div>
   <div class="abs c shadow" id="aboutLines" style="top:1150px;font-weight:800;font-size:46px;line-height:1.28;opacity:0"></div>
+  <div class="abs c shadow" id="defineBox" style="top:820px;opacity:0;font-weight:800;font-size:58px;line-height:1.38"></div>
   <div class="abs c" id="explainWrap" style="top:1262px;opacity:0"><span class="chip" id="aboutExplain" style="font-weight:600;font-size:30px;color:var(--mute)"></span></div>
 </div>
 
@@ -102,6 +103,8 @@ html,body{width:1080px;height:1920px;overflow:hidden;background:var(--bg);font-f
   </div>
 </div>
 
+<div id="sweep" class="full" style="opacity:0;background:linear-gradient(105deg,rgba(255,255,255,0) 35%,rgba(94,169,255,.35) 45%,rgba(255,255,255,.75) 50%,rgba(245,200,75,.35) 55%,rgba(255,255,255,0) 65%);mix-blend-mode:screen;pointer-events:none"></div>
+<div id="flash" class="full" style="opacity:0;background:#fff;pointer-events:none"></div>
 <div id="cap"></div>
 <div id="src"></div>
 
@@ -116,7 +119,7 @@ const lerp=(a,b,x)=>a+(b-a)*x;
 const fmt=n=>Math.round(n).toLocaleString('ko-KR');
 const $=id=>document.getElementById(id);
 const sc=Object.fromEntries(D.scenes.map(s=>[s.scene,s]));
-const XF=0.5;
+const XF=0.8;
 
 // 배경 격자 (사진이 없을 때 대비)
 const g=$('grid').getContext('2d');
@@ -138,6 +141,9 @@ if(D.logo){$('logoImg').src=D.logo;$('logoBox').style.background=D.logoTone==='l
 $('corpName').textContent=D.about.corp;
 $('aboutMeta').textContent=D.about.meta;
 const PARTS=(D.hook.parts||[]).slice(0,5);
+const defWords=[];if(sc.define){const box=$('defineBox');const ws=D.caps.filter(c=>c.s>=sc.define.t0-0.05&&c.s<sc.define.t1);
+  ws.forEach((w,i)=>{const sp=document.createElement('span');sp.style.display='inline-block';sp.style.marginRight='0.28em';
+    const txt=w.d.replace(/[.,]$/,'');sp.textContent=txt;if(i===0||txt.startsWith(D.hook.term))sp.style.color='#F5C84B';box.appendChild(sp);defWords.push({el:sp,s:w.s})});}
 $('aboutLines').innerHTML=PARTS.length?'':D.about.lines.join('<br>');
 if(D.about.explain){$('aboutExplain').textContent=D.about.explain}else{$('explainWrap').style.display='none'}
 // 제품 둘레 낱말: 오른쪽 위부터 시계 방향 (왼쪽 위는 비유 이모지 자리)
@@ -170,20 +176,32 @@ const chunks=[];{let cur=[],len=0;for(const w of D.caps){cur.push(w);len+=w.d.le
   if(/[.,]$/.test(w.d)||len>=15){chunks.push(cur);cur=[];len=0}}if(cur.length)chunks.push(cur)}
 
 function capT(sub,s){for(const c of D.caps){if(c.d.includes(sub)&&c.s>=s.t0-0.05&&c.s<=s.t1)return c}return null}
+function trans(id,s,t){const el=$(id);if(!s){el.style.opacity=0;return}
+  const e=eo(prog(t,s.t0-XF/2,s.t0+XF/2)),x=eio(prog(t,s.t1-XF/2,s.t1+XF/2));const first=s.t0<=0.01;
+  const ee=first?1:e;el.style.opacity=ee*(1-x);
+  el.style.transform=`translateY(${(1-ee)*90-x*60}px) scale(${1+0.14*(1-ee)-0.1*x}) rotate(${(1-ee)*-1.5+x*1.5}deg)`;
+  const b=(1-ee)*16+x*16;el.style.filter=b>0.3?`blur(${b.toFixed(1)}px)`:'none';}
+const BOUNDS=D.scenes.slice(1).map(s=>s.t0).filter(b=>!(sc.about&&Math.abs(b-sc.about.t0)<0.01)&&!(sc.define&&Math.abs(b-sc.define.t0)<0.01));
+function sweep(t){let best=null;for(const b of BOUNDS){if(Math.abs(t-b)<0.6)best=b}
+  if(best===null){$('sweep').style.opacity=0;$('flash').style.opacity=0;return}
+  const p=prog(t,best-0.55,best+0.55);$('sweep').style.opacity=Math.sin(Math.PI*p);$('sweep').style.transform=`translateX(${lerp(-1300,1300,eio(p))}px)`;
+  $('flash').style.opacity=0.22*Math.max(0,1-Math.abs(t-best)/0.12);}
 function vis(s,t){if(!s)return 0;return prog(t,s.t0-XF/2,s.t0+XF/2)*(1-prog(t,s.t1-XF/2,s.t1+XF/2))}
 function local(s,t){return t-s.t0}
 
 async function setT(t){
   grid(t);
-  const H=sc.hook,A=sc.about,aT=A?A.t0:H.t1;
-  const intro={t0:H.t0,t1:(A||H).t1};const iv=vis(intro,t);
+  const H=sc.hook,A=sc.about,DF=sc.define,aT=A?A.t0:H.t1,dT=DF?DF.t0:1e9;
+  const intro={t0:H.t0,t1:(DF||A||H).t1};const iv=vis(intro,t);
   // 배경: 소개(훅+사업) = 1장 사진(정지, 천천히 확대) → 숫자 장면 = 흐린 사진
   $('bgHero').style.opacity=IMG.hero?iv:0;
   $('bgHero').style.transform=`scale(${1.0+0.07*prog(t,0,intro.t1)})`;
   $('bgBack').style.opacity=IMG.back?clamp(1-iv):0;
-  $('bgBack').style.transform=`scale(${1.02+0.06*prog(t,0,D.total)}) translateX(${lerp(-24,24,prog(t,0,D.total))}px)`;
+  let punch=0;for(const bb of BOUNDS){punch=Math.max(punch,Math.max(0,1-Math.abs(t-bb)/0.5))}
+  $('bgBack').style.transform=`scale(${1.02+0.06*prog(t,0,D.total)+0.05*eo(punch)}) translateX(${lerp(-24,24,prog(t,0,D.total))}px)`;
   $('shade').style.opacity=0.85+0.15*iv;
-  $('s-intro').style.opacity=iv;
+  trans('s-intro',intro,t);
+  sweep(t);
   {const r=eio(prog(t,aT,aT+0.7));                       // 비유 → 실제 전환
    const tin=eo(prog(t,0.15,0.55)),tout=eo(prog(t,aT-0.1,aT+0.3));
    $('hookTitle').style.opacity=tin*(1-tout);$('hookTitle').style.transform=`translateY(${(1-tin)*50-tout*40}px)`;
@@ -207,31 +225,40 @@ async function setT(t){
    partEls.forEach((p,i)=>{const a0=aT+1.5+i*0.28;const lp=eio(prog(t,a0,a0+0.35)),pp=prog(t,a0+0.2,a0+0.55);
      p.l.setAttribute('stroke-dashoffset',p.len*(1-lp));p.d.style.opacity=clamp(pp*2);p.d.style.transform=`translate(-50%,-50%) scale(${0.4+0.6*back(pp)})`});
    const lg=back(prog(t,aT+0.2,aT+0.65));$('logoWrap').style.opacity=clamp(prog(t,aT+0.2,aT+0.45));$('logoWrap').style.transform=`translateY(${(1-lg)*-40}px)`;
-   const al=eo(prog(t,aT+1.5,aT+1.9));$('aboutLines').style.opacity=al;
-   const xp=eo(prog(t,aT+1.6+PARTS.length*0.28,aT+2.0+PARTS.length*0.28));$('explainWrap').style.opacity=xp;$('explainWrap').style.transform=`translateY(${(1-xp)*30}px)`;}
+   const al=eo(prog(t,aT+1.5,aT+1.9));$('aboutLines').style.opacity=al*(1-prog(t,dT-0.3,dT+0.2));
+   // 정의: 둘레 낱말·화살표·이모지가 물러나고 제품 상자가 위로, 정의 문장이 말에 맞춰 밝아짐
+   const dr=eio(prog(t,dT-0.1,dT+0.7)),dout=1-prog(t,dT-0.3,dT+0.3);
+   partEls.forEach(p=>{p.d.style.opacity=parseFloat(p.d.style.opacity||0)*dout;p.l.style.opacity=dout});
+   $('arrow').style.opacity=parseFloat($('arrow').style.opacity||0)*dout;$('arrowHead').style.opacity=dout;$('strike').style.opacity=parseFloat($('strike').style.opacity||0)*dout;
+   $('hookEmoji').style.opacity=parseFloat($('hookEmoji').style.opacity||1)*dout;
+   $('termBox').style.top=lerp(930,660,dr)+'px';$('termIn').style.transform+=` scale(${1-0.1*dr})`;
+   if(DF){$('defineBox').style.opacity=eo(prog(t,dT+0.2,dT+0.6));
+     defWords.forEach(w=>{const on=prog(t,w.s-0.08,w.s+0.12);w.el.style.opacity=0.22+0.78*on;w.el.style.transform=`translateY(${(1-eo(on))*10}px)`});}
+   const xp=DF?0:eo(prog(t,aT+1.6+PARTS.length*0.28,aT+2.0+PARTS.length*0.28));$('explainWrap').style.opacity=xp;$('explainWrap').style.transform=`translateY(${(1-xp)*30}px)`;}
   // 3. 몸값
-  if(sc.value){const s=sc.value,u=local(s,t),v=vis(s,t);$('s-value').style.opacity=v;$('s-value').style.transform=`translateY(${(1-eo(prog(u,0,0.5)))*60}px)`;
+  if(sc.value){const s=sc.value,u=local(s,t),v=vis(s,t);trans('s-value',s,t);
     const d1=s.t1-s.t0;const k1=capT(fmt(v1End)+'원',s);const c1=k1?eio(prog(t,Math.min(k1.s-0.25,s.t0+0.15),k1.s+0.6)):eio(prog(u,0.15,Math.min(1.4,d1*0.3)));
     $('v1').textContent=hasPrice?fmt(V.price*c1)+'원':`${fmt(V.low*c1)}~${fmt(V.high*c1)}원`;$('vb1').style.width=(100*v1End/vtop*c1)+'%';
     const k2a=capT('몸값',s);const r2=k2a?eo(prog(t,k2a.s-0.5,k2a.s-0.15)):eo(prog(u,d1*0.33,d1*0.33+0.35));['v2lab','v2','vb2w'].forEach(id=>$(id).style.opacity=r2);
     const k2=capT(fmt(V.val)+'원',s);const c2=k2?eio(prog(t,k2.s-0.2,k2.s+0.7)):eio(prog(u,d1*0.55,d1*0.85));$('v2').textContent=fmt(lerp(v1End,V.val,c2))+'원';$('vb2').style.width=lerp(100*v1End/vtop,100*V.val/vtop,c2)+'%';
     $('vnote').style.opacity=k2?eo(prog(t,k2.s+0.8,k2.s+1.2)):eo(prog(u,d1*0.85,d1*0.85+0.4));}
   // 4. 경쟁률
-  if(sc.demand){const s=sc.demand,u=local(s,t),v=vis(s,t);$('s-demand').style.opacity=v;const d=s.t1-s.t0;
+  if(sc.demand){const s=sc.demand,u=local(s,t),v=vis(s,t);trans('s-demand',s,t);const d=s.t1-s.t0;
     const kd=capT(':1',s);const c=kd?eio(prog(t,kd.s-0.3,kd.s+0.7)):eio(prog(u,0.6,Math.max(1.2,d-0.6)));$('dr').innerHTML=`${String(parseFloat((D.demand.ratio*c).toFixed(2)))}<span style="color:#8B95A1"> : </span>1`;
     dots.forEach((el,i)=>{const at=(kd?kd.s-0.3-s.t0:0.6)+(i/285)*1.0;const x=prog(u,at,at+0.18);el.style.opacity=x;el.style.transform=`scale(${back(x)})`});}
   // 5. 도넛
-  if(ring){const s=ring.s,u=local(s,t),v=vis(s,t);$('s-ring').style.opacity=v;$('s-ring').style.transform=`scale(${0.94+0.06*eo(prog(u,0,0.5))})`;
+  if(ring){const s=ring.s,u=local(s,t),v=vis(s,t);trans('s-ring',s,t);
     const d=s.t1-s.t0;const L=2*Math.PI*230;const kr=capT('%',s)||capT('퍼센트',s);const k=kr?eio(prog(t,kr.s-0.3,kr.s+0.8)):eio(prog(u,d*0.45,d*0.85));
     $('arc').setAttribute('stroke-dasharray',`${L*ring.pct/100*k} ${L}`);$('ringPct').textContent=String(parseFloat((ring.pct*k).toFixed(2)))+'%';
     $('ringNote').style.opacity=kr?eo(prog(t,kr.s+0.9,kr.s+1.3)):eo(prog(u,d*0.85,d*0.85+0.35));}
   // 6. 일정
-  if(sc.sched){const s=sc.sched,u=local(s,t),v=vis(s,t);$('s-sched').style.opacity=v;$('schedBig').style.transform=`scale(${0.85+0.15*back(prog(u,0,0.5))})`}
+  if(sc.sched){const s=sc.sched,u=local(s,t),v=vis(s,t);trans('s-sched',s,t);$('schedBig').style.transform=`scale(${0.85+0.15*back(prog(u,0,0.5))})`}
   // 7. 마무리
-  if(sc.outro){const s=sc.outro,u=local(s,t);$('s-outro').style.opacity=vis(s,t);$('s-outro').style.transform=`scale(${0.92+0.08*eo(prog(u,0,0.5))})`}
+  if(sc.outro){const s=sc.outro,u=local(s,t);trans('s-outro',s,t)}
 
   // 자막
   let cur=null;for(const ch of chunks){if(t>=ch[0].s-0.05&&t<=ch[ch.length-1].e+0.25)cur=ch}
+  if(cur&&sc.define&&cur[0].s>=sc.define.t0-0.05&&cur[0].s<sc.define.t1)cur=null;
   $('cap').innerHTML=cur?cur.map(w=>`<span style="color:${t>=w.s?'#F2F4F6':'rgba(242,244,246,.4)'}">${w.d.replace(/[,.]$/,'')}</span>`).join(' '):'';
 }
 window.setT=setT;

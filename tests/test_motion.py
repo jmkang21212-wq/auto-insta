@@ -37,7 +37,7 @@ def _labup():
 def test_script_numbers_come_from_facts_and_align():
     facts, summary, hook = _labup()
     segs = motion.script(facts, summary, hook, "listing", date(2026, 11, 2))
-    assert [s.scene for s in segs] == ["hook", "about", "value", "value", "demand", "lockup", "outro"]
+    assert [s.scene for s in segs] == ["hook", "about", "define", "value", "value", "demand", "lockup", "outro"]
     shown = " ".join(sh for s in segs for _, sh in s.tokens)
     assert "19,000원." in shown and "29,551원이에요." in shown and "284.53:1." in shown and "2.09%예요." in shown
     spoken = motion.tts_text(segs)
@@ -50,8 +50,13 @@ def test_script_numbers_come_from_facts_and_align():
     assert caps[0]["s"] == 0.0 and scenes[0]["t0"] == 0.0 and scenes[-1]["t1"] == t + 1
     assert all(a["t1"] == b["t0"] for a, b in zip(scenes, scenes[1:]))
     assert any(c["d"] == "29,551원이에요." for c in caps)
-    assert [x["scene"] for x in scenes] == ["hook", "about", "value", "demand", "lockup", "outro"]
+    assert [x["scene"] for x in scenes] == ["hook", "about", "define", "value", "demand", "lockup", "outro"]
     assert motion._term_short("Showerhead(샤워헤드)") == "샤워헤드" and motion._term_short("정전척") == "정전척"
+
+
+def test_spoken_explain():
+    assert motion.spoken_explain(": 정전척은 진공 환경에서 정전기력을 이용해 웨이퍼를 고정하는 장치임") == "정전척은 진공 환경에서 정전기력을 이용해 웨이퍼를 고정하는 장치예요."
+    assert motion.spoken_explain(": 6세대 이상 라인에 쓰임") == ""
 
 
 def test_stamp_and_credit():

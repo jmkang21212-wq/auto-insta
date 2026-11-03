@@ -6,15 +6,9 @@
  "status": "pending",
  "source_run": "run1",
  "format": "reel",
- "reel": "reel_m2.mp4",
+ "reel": "reel_m3.mp4",
  "phase": "listing",
  "subscription_start": "2026-10-22",
  "market": "KR",
- "publish_at": "2026-11-03T13:00:00+09:00",
- "telegram": {
-  "message_id": 210,
-  "chat_id": 8647980564,
-  "format": "reel",
-  "sent_at": "2026-11-03T12:12:51.948615+09:00"
- }
+ "publish_at": "2026-11-03T13:00:00+09:00"
 }

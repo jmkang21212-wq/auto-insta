@@ -35,7 +35,7 @@ TEMPLATE = settings.templates_dir / "motion.html"
 FONTS = settings.templates_dir.parent / "fonts"
 
 
-PAUSE = os.getenv("TTS_PAUSE", "0.9")  # 문장 사이 쉼: 숫자가 다 찬 뒤 멈춰 있는 시간
+PAUSE = os.getenv("TTS_PAUSE", "1.3")  # 11-03 사용자: 장면 전환이 급함 → 문장 사이 1.3초  # 문장 사이 쉼: 숫자가 다 찬 뒤 멈춰 있는 시간
 
 
 class MotionUnavailable(RuntimeError):
@@ -110,6 +110,20 @@ def spoken_title(title: str) -> str:
     return t if t.endswith(".") else t + "."
 
 
+def spoken_explain(explain: str) -> str:
+    """캡션 풀이 줄(': 정전척은 … 고정하는 장치임')을 말투로 ('… 장치예요.'). 숫자가 있으면 읽기가 어긋나니 뺀다"""
+    t = explain.strip().lstrip(":").strip()
+    if not t or re.search(r"\d", t):
+        return ""
+    t = re.sub(r"\s+", " ", t).rstrip(".")
+    for a, b in (("하는 장치임", "하는 장치예요"), ("장치임", "장치예요"), ("말임", "말이에요"), ("부품임", "부품이에요"),
+                 ("임", "이에요"), ("함", "해요"), ("됨", "돼요")):
+        if t.endswith(a):
+            t = t[: -len(a)] + b
+            break
+    return t + "."
+
+
 def _pct_spoken(p: float) -> tuple[str, str]:
     """(읽는 말, 자막) 1% 미만은 '1%도 안 돼요'로 읽고 자막엔 실제 숫자"""
     if p < 1:
@@ -148,6 +162,9 @@ def script(facts, summary, hook, phase: str, today: date) -> list[Seg]:
     biz = " ".join(l.strip() for l in (summary.business_lines or []) if l.strip())
     if biz:
         segs.append(Seg("about").add(f"{corp}{josa(corp, '은', '는')}").add(biz if biz.endswith(".") else biz + "."))
+    d = spoken_explain(hook.explain or "")
+    if d:  # 비유한 제품이 실제로 뭔지 한 문장 (신고서 용어 해설 그대로, 11-03 사용자: "정전척이 뭔지 설명해줘야지")
+        segs.append(Seg("define").add(d))
     v = facts.valuation_krw
     if v:
         s = Seg("value")
