@@ -16,6 +16,7 @@ html,body{width:1080px;height:1920px;overflow:hidden;background:var(--bg);font-f
 .shadow{text-shadow:0 6px 30px rgba(0,0,0,.65)}
 .bar{height:34px;border-radius:17px}
 .dot{position:absolute;width:26px;height:26px;border-radius:50%}
+.ptag{position:absolute;padding:12px 24px;border-radius:16px;font-weight:800;font-size:36px;background:rgba(11,13,18,.8);border:2px solid rgba(94,169,255,.55);color:#DCEBFF;white-space:nowrap;transform:translate(-50%,-50%);box-shadow:0 10px 30px rgba(0,0,0,.4)}
 .chip{display:inline-block;padding:16px 30px;border-radius:20px;background:rgba(11,13,18,.62);border:2px solid rgba(255,255,255,.16);backdrop-filter:blur(6px)}
 #top{position:absolute;left:0;right:0;top:288px;text-align:center}
 #top span{display:inline-block;padding:12px 28px;border-radius:999px;font-weight:700;font-size:32px;background:rgba(94,169,255,.16);color:var(--blue);border:2px solid rgba(94,169,255,.4)}
@@ -32,24 +33,30 @@ html,body{width:1080px;height:1920px;overflow:hidden;background:var(--bg);font-f
 <div class="full" id="shade" style="background:linear-gradient(180deg,rgba(11,13,18,.82) 0%,rgba(11,13,18,.15) 30%,rgba(11,13,18,.25) 62%,rgba(11,13,18,.92) 100%)"></div>
 <div id="top"><span>ipov · 공모주</span></div>
 
-<div class="scene" id="s-hook">
-  <div class="abs c shadow" style="top:420px">
-    <div id="hookEmoji" style="font-size:120px;line-height:1"></div>
-    <div id="hookTitle" style="margin-top:26px;font-weight:900;font-size:90px;line-height:1.16"></div>
+<div class="scene" id="s-intro">
+  <div class="abs c shadow" id="hookTitle" style="top:380px;font-weight:900;font-size:84px;line-height:1.16"></div>
+  <div class="abs c" id="logoWrap" style="top:372px;opacity:0">
+    <div id="logoBox" style="display:inline-flex;align-items:center;border-radius:24px;padding:18px 36px;box-shadow:0 20px 60px rgba(0,0,0,.45)"><img id="logoImg" style="height:70px"></div>
+    <div id="corpName" class="shadow" style="font-weight:900;font-size:60px"></div>
+    <div id="aboutMeta" class="lab shadow" style="margin-top:12px;font-size:32px"></div>
   </div>
-  <div class="abs" id="stamp" style="left:540px;top:1180px">
+  <svg id="introSvg" class="abs" style="left:0;top:0" width="1080" height="1920" viewBox="0 0 1080 1920">
+    <path id="arrow" d="" fill="none" stroke="#F5C84B" stroke-width="8" stroke-linecap="round"/>
+    <path id="arrowHead" d="" fill="#F5C84B"/>
+    <g id="partLines"></g>
+    <line id="strike" stroke="#FF5A5A" stroke-width="12" stroke-linecap="round"/>
+  </svg>
+  <div class="abs" id="emojiBox" style="left:540px;top:880px"><div id="hookEmoji" style="font-size:250px;line-height:1;transform:translate(-50%,-50%);filter:drop-shadow(0 20px 40px rgba(0,0,0,.5))"></div></div>
+  <div class="abs" id="sticker" style="left:760px;top:1060px;opacity:0"><div id="stickerIn" style="transform:translate(-50%,-50%) rotate(8deg)"><span id="stickerTxt" style="display:inline-block;white-space:nowrap;background:#fff;color:#111;padding:12px 26px;border-radius:14px;font-weight:800;font-size:40px;box-shadow:0 12px 30px rgba(0,0,0,.45)"></span></div></div>
+  <div class="abs" id="stamp" style="left:540px;top:1200px;opacity:0">
     <div id="stampIn" style="transform:translate(-50%,-50%)"><span id="stampTxt" style="display:inline-block;white-space:nowrap;background:var(--gold);color:#111;padding:18px 40px;border-radius:20px;font-weight:900;font-size:58px;box-shadow:0 16px 40px rgba(0,0,0,.45)"></span></div>
   </div>
-</div>
-
-<div class="scene" id="s-about">
-  <div class="abs c" style="top:440px">
-    <div id="logoBox" style="display:inline-flex;align-items:center;border-radius:26px;padding:22px 42px;box-shadow:0 20px 60px rgba(0,0,0,.45)"><img id="logoImg" style="height:84px"></div>
-    <div id="corpName" class="shadow" style="font-weight:900;font-size:64px;margin-top:22px"></div>
-    <div id="aboutMeta" class="lab shadow" style="margin-top:6px;font-size:36px"></div>
-  </div>
-  <div class="abs c shadow" id="aboutLines" style="top:820px;font-weight:800;font-size:66px;line-height:1.25"></div>
-  <div class="abs c" style="top:1150px"><span class="chip" id="aboutExplain" style="font-weight:600;font-size:32px;color:var(--mute)"></span></div>
+  <div class="abs" id="termBox" style="left:540px;top:930px;opacity:0"><div id="termIn" style="transform:translate(-50%,-50%);text-align:center">
+    <div style="font-weight:700;font-size:30px;color:var(--mute);margin-bottom:10px" class="shadow">실제로는</div>
+    <span id="termTxt" style="display:inline-block;white-space:nowrap;background:rgba(11,13,18,.78);border:4px solid var(--gold);color:var(--ink);padding:22px 44px;border-radius:26px;font-weight:900;font-size:66px;box-shadow:0 20px 60px rgba(0,0,0,.5)"></span></div></div>
+  <div id="partTags"></div>
+  <div class="abs c shadow" id="aboutLines" style="top:1150px;font-weight:800;font-size:46px;line-height:1.28;opacity:0"></div>
+  <div class="abs c" id="explainWrap" style="top:1262px;opacity:0"><span class="chip" id="aboutExplain" style="font-weight:600;font-size:30px;color:var(--mute)"></span></div>
 </div>
 
 <div class="scene" id="s-value">
@@ -109,7 +116,7 @@ const lerp=(a,b,x)=>a+(b-a)*x;
 const fmt=n=>Math.round(n).toLocaleString('ko-KR');
 const $=id=>document.getElementById(id);
 const sc=Object.fromEntries(D.scenes.map(s=>[s.scene,s]));
-const XF=0.35;
+const XF=0.5;
 
 // 배경 격자 (사진이 없을 때 대비)
 const g=$('grid').getContext('2d');
@@ -124,12 +131,23 @@ function grid(t){g.fillStyle='#0B0D12';g.fillRect(0,0,1080,1920);
 $('hookEmoji').textContent=D.hook.emoji||'';
 $('hookTitle').innerHTML=D.hook.title;
 $('stampTxt').textContent=D.hook.stamp;
+$('stickerTxt').textContent=D.hook.sub||'';if(!D.hook.sub)$('sticker').style.display='none';
+$('termTxt').textContent=D.hook.term||D.about.corp;
 if(D.logo){$('logoImg').src=D.logo;$('logoBox').style.background=D.logoTone==='light'?'rgba(255,255,255,.08)':'#fff';
-  if(D.logoTone==='light')$('logoBox').style.border='2px solid rgba(255,255,255,.18)'}else{$('logoBox').style.display='none'}
-$('corpName').textContent=D.logo?'':D.about.corp;
+  if(D.logoTone==='light')$('logoBox').style.border='2px solid rgba(255,255,255,.18)';$('corpName').style.display='none'}else{$('logoBox').style.display='none'}
+$('corpName').textContent=D.about.corp;
 $('aboutMeta').textContent=D.about.meta;
-$('aboutLines').innerHTML=D.about.lines.join('<br>');
-if(D.about.explain){$('aboutExplain').textContent=D.about.explain}else{$('aboutExplain').style.display='none'}
+const PARTS=(D.hook.parts||[]).slice(0,5);
+$('aboutLines').innerHTML=PARTS.length?'':D.about.lines.join('<br>');
+if(D.about.explain){$('aboutExplain').textContent=D.about.explain}else{$('explainWrap').style.display='none'}
+// 제품 둘레 낱말: 오른쪽 위부터 시계 방향 (왼쪽 위는 비유 이모지 자리)
+const TC={x:540,y:930}, ANG=[-25,25,90,155,205].slice(0,Math.max(PARTS.length,0));
+const ANGS=PARTS.length<=3?[-20,90,200].slice(0,PARTS.length):PARTS.length==4?[-25,40,140,205]:[-25,25,90,155,205];
+const partEls=PARTS.map((w,i)=>{const a=ANGS[i]*Math.PI/180,x=TC.x+Math.cos(a)*330,y=TC.y+Math.sin(a)*235;
+  const d=document.createElement('div');d.className='ptag';d.textContent=w;d.style.left=x+'px';d.style.top=y+'px';d.style.opacity=0;$('partTags').appendChild(d);
+  const l=document.createElementNS('http://www.w3.org/2000/svg','line');l.setAttribute('x1',TC.x);l.setAttribute('y1',TC.y);l.setAttribute('x2',x);l.setAttribute('y2',y);
+  l.setAttribute('stroke','rgba(94,169,255,.6)');l.setAttribute('stroke-width','4');const len=Math.hypot(x-TC.x,y-TC.y);l.setAttribute('stroke-dasharray',`${len} ${len}`);l.setAttribute('stroke-dashoffset',len);
+  $('partLines').appendChild(l);return {d,l,len}});
 $('src').textContent=D.source;
 const V=D.value, hasPrice=!!V.price, vtop=Math.max(V.val||0,V.price||V.high||0)||1;
 $('v1lab').textContent=hasPrice?'확정 공모가':'희망 공모가';
@@ -157,48 +175,56 @@ function local(s,t){return t-s.t0}
 
 async function setT(t){
   grid(t);
-  const H=sc.hook,hv=vis(H,t);
-  // 배경: 훅 = 영상 프레임 → 나머지 = 사진
-  let wait=null;
-  if(D.clip.n&&t<H.t1+XF){const i=Math.min(D.clip.n,Math.max(1,Math.floor(t*30)+1));const src=`${D.clip.dir}/f${String(i).padStart(4,'0')}.jpg`;
-    const im=$('bgClip');if(im.dataset.src!==src){im.dataset.src=src;im.src=src;wait=im.decode().catch(()=>{})}}
-  $('bgClip').style.opacity=D.clip.n?hv:0;
-  $('bgClip').style.transform=`scale(${1.04+0.05*prog(t,0,H.t1)})`;
-  const heroScenes=['about'];const aboutV=vis(sc.about,t);
-  const heroOp=IMG.hero?(D.clip.n?aboutV:Math.max(hv,aboutV)):0;
-  $('bgHero').style.opacity=heroOp;$('bgHero').style.transform=`scale(${1.0+0.08*prog(t,0,(sc.about||H).t1)}) translateY(${-20*prog(t,0,(sc.about||H).t1)}px)`;
-  const backOp=IMG.back?clamp(1-hv-aboutV):0;
-  $('bgBack').style.opacity=backOp;$('bgBack').style.transform=`scale(${1.02+0.06*prog(t,0,D.total)}) translateX(${lerp(-24,24,prog(t,0,D.total))}px)`;
-  $('shade').style.opacity=0.75+0.25*hv;
-
-  // 1. 훅
-  $('s-hook').style.opacity=hv;
-  {const u=local(H,t);const e=back(prog(u,0.05,0.55));
-   $('hookEmoji').style.transform=`scale(${e}) rotate(${lerp(-20,0,eo(prog(u,0.05,0.6)))}deg)`;
-   $('hookTitle').style.opacity=eo(prog(u,0.15,0.55));$('hookTitle').style.transform=`translateY(${(1-eo(prog(u,0.15,0.6)))*50}px)`;
-   const st=prog(u,Math.min(1.6,H.t1*0.55),Math.min(1.95,H.t1*0.55+0.35));$('stamp').style.opacity=clamp(st*3);
-   $('stampIn').style.transform=`translate(-50%,-50%) rotate(${lerp(-14,-4,back(st))}deg) scale(${lerp(1.8,1,eo(st))})`;}
-  // 2. 사업
-  if(sc.about){const s=sc.about,u=local(s,t);$('s-about').style.opacity=aboutV;
-    const a=back(prog(u,0.0,0.5));$('logoBox').style.transform=`scale(${0.6+0.4*a})`;
-    $('aboutLines').style.opacity=eo(prog(u,0.25,0.7));$('aboutLines').style.transform=`translateY(${(1-eo(prog(u,0.25,0.75)))*40}px)`;
-    $('aboutExplain').style.opacity=eo(prog(u,1.0,1.4));}
+  const H=sc.hook,A=sc.about,aT=A?A.t0:H.t1;
+  const intro={t0:H.t0,t1:(A||H).t1};const iv=vis(intro,t);
+  // 배경: 소개(훅+사업) = 1장 사진(정지, 천천히 확대) → 숫자 장면 = 흐린 사진
+  $('bgHero').style.opacity=IMG.hero?iv:0;
+  $('bgHero').style.transform=`scale(${1.0+0.07*prog(t,0,intro.t1)})`;
+  $('bgBack').style.opacity=IMG.back?clamp(1-iv):0;
+  $('bgBack').style.transform=`scale(${1.02+0.06*prog(t,0,D.total)}) translateX(${lerp(-24,24,prog(t,0,D.total))}px)`;
+  $('shade').style.opacity=0.85+0.15*iv;
+  $('s-intro').style.opacity=iv;
+  {const r=eio(prog(t,aT,aT+0.7));                       // 비유 → 실제 전환
+   const tin=eo(prog(t,0.15,0.55)),tout=eo(prog(t,aT-0.1,aT+0.3));
+   $('hookTitle').style.opacity=tin*(1-tout);$('hookTitle').style.transform=`translateY(${(1-tin)*50-tout*40}px)`;
+   const pop=back(prog(t,0.05,0.6));
+   const ex=lerp(540,190,r),ey=lerp(880,640,r),es=lerp(1,0.42,r)*pop;
+   $('emojiBox').style.left=ex+'px';$('emojiBox').style.top=ey+'px';
+   $('hookEmoji').style.transform=`translate(-50%,-50%) scale(${es}) rotate(${(1-r)*Math.sin(t*3.2)*5}deg)`;
+   $('hookEmoji').style.opacity=1-0.45*prog(t,aT+0.8,aT+1.2);
+   const sk=prog(t,Math.min(1.2,H.t1*0.4),Math.min(1.5,H.t1*0.4+0.3));
+   $('sticker').style.opacity=clamp(sk*3)*(1-prog(t,aT-0.1,aT+0.2));$('stickerIn').style.transform=`translate(-50%,-50%) rotate(${lerp(-10,8,back(sk))}deg) scale(${lerp(1.6,1,eo(sk))})`;
+   const st=prog(t,Math.min(1.9,H.t1*0.6),Math.min(2.25,H.t1*0.6+0.35));
+   $('stamp').style.opacity=clamp(st*3)*(1-prog(t,aT-0.1,aT+0.2));$('stampIn').style.transform=`translate(-50%,-50%) rotate(${lerp(-14,-4,back(st))}deg) scale(${lerp(1.8,1,eo(st))})`;
+   // 작아진 이모지에 빗금 (진짜 그것 아님)
+   const sx=prog(t,aT+0.75,aT+1.0);const S=$('strike');S.setAttribute('x1',ex-70);S.setAttribute('y1',ey-70);
+   S.setAttribute('x2',lerp(ex-70,ex+70,sx));S.setAttribute('y2',lerp(ey-70,ey+70,sx));S.style.opacity=sx>0?1:0;
+   // 화살표: 이모지 → 실제 제품
+   const ap=prog(t,aT+0.7,aT+1.15);const x0=260,y0=700,x1=405,y1=880;
+   $('arrow').setAttribute('d',`M${x0},${y0} Q${x0+20},${y1} ${lerp(x0,x1,ap)},${lerp(y0,y1,ap*ap)}`);$('arrow').style.opacity=ap>0?1:0;
+   $('arrowHead').setAttribute('d',ap>=1?`M${x1+14},${y1} L${x1-12},${y1-16} L${x1-6},${y1+2} L${x1-12},${y1+18} Z`:'');
+   const tp=prog(t,aT+0.95,aT+1.45);$('termBox').style.opacity=clamp(tp*2);$('termIn').style.transform=`translate(-50%,-50%) scale(${0.5+0.5*back(tp)})`;
+   partEls.forEach((p,i)=>{const a0=aT+1.5+i*0.28;const lp=eio(prog(t,a0,a0+0.35)),pp=prog(t,a0+0.2,a0+0.55);
+     p.l.setAttribute('stroke-dashoffset',p.len*(1-lp));p.d.style.opacity=clamp(pp*2);p.d.style.transform=`translate(-50%,-50%) scale(${0.4+0.6*back(pp)})`});
+   const lg=back(prog(t,aT+0.2,aT+0.65));$('logoWrap').style.opacity=clamp(prog(t,aT+0.2,aT+0.45));$('logoWrap').style.transform=`translateY(${(1-lg)*-40}px)`;
+   const al=eo(prog(t,aT+1.5,aT+1.9));$('aboutLines').style.opacity=al;
+   const xp=eo(prog(t,aT+1.6+PARTS.length*0.28,aT+2.0+PARTS.length*0.28));$('explainWrap').style.opacity=xp;$('explainWrap').style.transform=`translateY(${(1-xp)*30}px)`;}
   // 3. 몸값
   if(sc.value){const s=sc.value,u=local(s,t),v=vis(s,t);$('s-value').style.opacity=v;$('s-value').style.transform=`translateY(${(1-eo(prog(u,0,0.5)))*60}px)`;
-    const d1=s.t1-s.t0;const k1=capT(fmt(v1End)+'원',s);const c1=k1?eio(prog(t,Math.min(k1.s-0.25,s.t0+0.15),k1.e)):eio(prog(u,0.15,Math.min(1.4,d1*0.3)));
+    const d1=s.t1-s.t0;const k1=capT(fmt(v1End)+'원',s);const c1=k1?eio(prog(t,Math.min(k1.s-0.25,s.t0+0.15),k1.s+0.6)):eio(prog(u,0.15,Math.min(1.4,d1*0.3)));
     $('v1').textContent=hasPrice?fmt(V.price*c1)+'원':`${fmt(V.low*c1)}~${fmt(V.high*c1)}원`;$('vb1').style.width=(100*v1End/vtop*c1)+'%';
     const k2a=capT('몸값',s);const r2=k2a?eo(prog(t,k2a.s-0.5,k2a.s-0.15)):eo(prog(u,d1*0.33,d1*0.33+0.35));['v2lab','v2','vb2w'].forEach(id=>$(id).style.opacity=r2);
-    const k2=capT(fmt(V.val)+'원',s);const c2=k2?eio(prog(t,k2.s-0.25,k2.e)):eio(prog(u,d1*0.55,d1*0.85));$('v2').textContent=fmt(lerp(v1End,V.val,c2))+'원';$('vb2').style.width=lerp(100*v1End/vtop,100*V.val/vtop,c2)+'%';
-    $('vnote').style.opacity=eo(prog(u,d1*0.85,d1*0.85+0.4));}
+    const k2=capT(fmt(V.val)+'원',s);const c2=k2?eio(prog(t,k2.s-0.2,k2.s+0.7)):eio(prog(u,d1*0.55,d1*0.85));$('v2').textContent=fmt(lerp(v1End,V.val,c2))+'원';$('vb2').style.width=lerp(100*v1End/vtop,100*V.val/vtop,c2)+'%';
+    $('vnote').style.opacity=k2?eo(prog(t,k2.s+0.8,k2.s+1.2)):eo(prog(u,d1*0.85,d1*0.85+0.4));}
   // 4. 경쟁률
   if(sc.demand){const s=sc.demand,u=local(s,t),v=vis(s,t);$('s-demand').style.opacity=v;const d=s.t1-s.t0;
-    const kd=capT(':1',s);const c=kd?eio(prog(t,kd.s-0.35,kd.e)):eio(prog(u,0.6,Math.max(1.2,d-0.6)));$('dr').innerHTML=`${String(parseFloat((D.demand.ratio*c).toFixed(2)))}<span style="color:#8B95A1"> : </span>1`;
-    dots.forEach((el,i)=>{const at=0.6+(i/285)*Math.max(0.6,d-1.2);const x=prog(u,at,at+0.18);el.style.opacity=x;el.style.transform=`scale(${back(x)})`});}
+    const kd=capT(':1',s);const c=kd?eio(prog(t,kd.s-0.3,kd.s+0.7)):eio(prog(u,0.6,Math.max(1.2,d-0.6)));$('dr').innerHTML=`${String(parseFloat((D.demand.ratio*c).toFixed(2)))}<span style="color:#8B95A1"> : </span>1`;
+    dots.forEach((el,i)=>{const at=(kd?kd.s-0.3-s.t0:0.6)+(i/285)*1.0;const x=prog(u,at,at+0.18);el.style.opacity=x;el.style.transform=`scale(${back(x)})`});}
   // 5. 도넛
   if(ring){const s=ring.s,u=local(s,t),v=vis(s,t);$('s-ring').style.opacity=v;$('s-ring').style.transform=`scale(${0.94+0.06*eo(prog(u,0,0.5))})`;
-    const d=s.t1-s.t0;const L=2*Math.PI*230;const kr=capT('%',s)||capT('퍼센트',s);const k=kr?eio(prog(t,kr.s-0.6,kr.e)):eio(prog(u,d*0.45,d*0.85));
+    const d=s.t1-s.t0;const L=2*Math.PI*230;const kr=capT('%',s)||capT('퍼센트',s);const k=kr?eio(prog(t,kr.s-0.3,kr.s+0.8)):eio(prog(u,d*0.45,d*0.85));
     $('arc').setAttribute('stroke-dasharray',`${L*ring.pct/100*k} ${L}`);$('ringPct').textContent=String(parseFloat((ring.pct*k).toFixed(2)))+'%';
-    $('ringNote').style.opacity=eo(prog(u,d*0.85,d*0.85+0.35));}
+    $('ringNote').style.opacity=kr?eo(prog(t,kr.s+0.9,kr.s+1.3)):eo(prog(u,d*0.85,d*0.85+0.35));}
   // 6. 일정
   if(sc.sched){const s=sc.sched,u=local(s,t),v=vis(s,t);$('s-sched').style.opacity=v;$('schedBig').style.transform=`scale(${0.85+0.15*back(prog(u,0,0.5))})`}
   // 7. 마무리
@@ -207,7 +233,6 @@ async function setT(t){
   // 자막
   let cur=null;for(const ch of chunks){if(t>=ch[0].s-0.05&&t<=ch[ch.length-1].e+0.25)cur=ch}
   $('cap').innerHTML=cur?cur.map(w=>`<span style="color:${t>=w.s?'#F2F4F6':'rgba(242,244,246,.4)'}">${w.d.replace(/[,.]$/,'')}</span>`).join(' '):'';
-  if(wait)await wait;
 }
 window.setT=setT;
 Promise.all([...document.images].filter(i=>i.src).map(i=>i.decode().catch(()=>{}))).then(()=>document.fonts.ready).then(()=>{window.ready=true});

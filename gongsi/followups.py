@@ -99,7 +99,7 @@ def lockup_posts(run_id: int, today: date) -> int:
             src = b.get("source_rcept_no") or p.rcept_no.split("_")[0]
             key = f"{src}_{phase}"
             raw = b["hooks"][min(int(b.get("chosen") or 0), len(b["hooks"]) - 1)] if b.get("hooks") else None
-            hook = Hook(**{k: raw[k] for k in ("title", "term", "emoji", "sub", "video", "explain", "alt_videos", "use") if k in raw}) if raw else None
+            hook = Hook(**{k: raw[k] for k in ("title", "term", "emoji", "sub", "video", "explain", "alt_videos", "use", "parts") if k in raw}) if raw else None
             second = f"유통 가능 주식 {rel['before']['pct']:g}% → {rel['after']['pct']:g}%"
             video = None
             if hook:

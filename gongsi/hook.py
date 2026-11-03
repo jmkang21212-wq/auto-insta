@@ -43,7 +43,9 @@ PROMPT = """너는 인스타 경제 계정 ekke.now 같은 말투로 공모주 �
 9. 후보 3개, 서로 다른 제품이나 각도로.
 10. use: 이 회사 제품이 실제로 어디에 쓰이는지 한 줄 (썸네일에 들어감). 예: "반도체 장비에 들어감", "AI 데이터센터·수소차에 쓰임".
    사업 원문에 나온 용도·고객 산업 낱말만, 18자 이내, 숫자·과장 금지. 회사마다 하나.
-JSON만: {"use":"","hooks":[{"title":"","term":"","emoji":"","sub":"","video":"","videos":["","",""]}]}
+11. parts: 모션 그래픽에서 제품 둘레에 붙일 짧은 낱말 3~5개 (제품이 쓰이는 곳·다루는 것·고객 산업). 사업 원문·용어 해설에 철자 그대로 있는
+   낱말만, 각 8자 이내, 숫자 금지. 예: ["반도체", "디스플레이", "웨이퍼", "유리기판"]. 회사마다 하나.
+JSON만: {"use":"","parts":["",""],"hooks":[{"title":"","term":"","emoji":"","sub":"","video":"","videos":["","",""]}]}
 
 회사: {corp} / 업종: {industry}
 사업 원문:
@@ -63,6 +65,7 @@ class Hook:
     explain: str = ""  # 캡션 ':' 줄. 신고서 용어 해설 그대로
     alt_videos: list[str] = field(default_factory=list)  # video로 못 찾으면 차례로 (구체적 → 흔한 장면)
     use: str = ""  # 썸네일 '📍 어디에 쓰이는지' 한 줄 (회사마다 같음, 사업 원문 낱말만)
+    parts: list[str] = field(default_factory=list)  # 모션 그래픽 제품 둘레 낱말 (사업 원문 철자 그대로, 2026-11-03)
 
     def queries(self) -> list[str]:
         return [q for q in dict.fromkeys([self.video, *self.alt_videos]) if q]
@@ -213,6 +216,17 @@ def check_use(use: str, facts: IpoFacts) -> list[str]:
     return problems + check_forbidden([use])
 
 
+def check_parts(parts, facts: IpoFacts) -> list[str]:
+    """제품 둘레 낱말: 사업 원문·용어 해설에 띄어쓰기 무시하고 그대로 있는 것만, 숫자·금지어 없이, 8자 이내, 최대 5개"""
+    src = re.sub(r"\s", "", " ".join(facts.business_evidence) + " " + " ".join(f"{k} {v}" for k, v in facts.glossary.items()))
+    out = []
+    for p in parts:
+        p = str(p).strip()
+        if p and len(p) <= 8 and not re.search(r"\d", p) and re.sub(r"\s", "", p) in src and not check_forbidden([p]) and p not in out:
+            out.append(p)
+    return out[:5]
+
+
 def check_hook(h: Hook, facts: IpoFacts) -> list[str]:
     """근거·말투 검사. 문제가 없으면 빈 목록"""
     problems = []
@@ -253,11 +267,13 @@ def make_hooks(facts: IpoFacts) -> list[Hook]:
     use = str(data.get("use", "")).strip()
     if check_use(use, facts):
         use = ""  # 원문에 없는 낱말이 있으면 쓰이는 곳 줄은 빼고 간다
+    parts = check_parts(data.get("parts") or [], facts)
     for raw in data.get("hooks", [])[:3]:
         h = Hook(**{k: str(raw.get(k, "")).strip() for k in ("title", "term", "emoji", "sub", "video")})
         alts = [str(q).strip() for q in (raw.get("videos") or []) if isinstance(q, str)]
         h.alt_videos = [q for q in alts if q != h.video and re.fullmatch(r"[A-Za-z][A-Za-z \-]{2,40}", q)][:3]
         h.use = use
+        h.parts = parts
         if not check_hook(h, facts):
             h.explain = explain_line(h.term, facts.glossary, al, h.title, facts.business_evidence)
             rank[id(h)] = 0 if explain_parts(h.term, facts.glossary, al, h.title, facts.business_evidence)[1] else 1 if h.explain else 2
@@ -288,6 +304,7 @@ def previous_hook(facts: IpoFacts) -> Hook | None:
         h = Hook(**{k: str(raw.get(k, "")) for k in ("title", "term", "emoji", "sub", "video", "use")},
                  alt_videos=[str(v) for v in raw.get("alt_videos") or []])
         h.title = phase_title(h.title, "pre")  # 단계 꼬리('내일 상장함' 등)는 떼고 원래 제목으로
+        h.parts = check_parts(raw.get("parts") or [], facts)
         if check_hook(h, facts):
             return None
         h.explain = explain_line(h.term, facts.glossary, aliases(facts.business_evidence), h.title, facts.business_evidence)

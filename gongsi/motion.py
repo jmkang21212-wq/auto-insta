@@ -30,9 +30,12 @@ from gongsi.config import settings
 
 W, H, FPS = 1080, 1920, 30
 VOICE_ID = os.getenv("TTS_VOICE_ID", "fe3fbd12d84c41b5a791e6ea544f774d")  # HeyGen 한국어 여성 (2026-11-02 샘플에서 사용자 승인)
-TTS_SPEED = float(os.getenv("TTS_SPEED", "1.15"))
+TTS_SPEED = float(os.getenv("TTS_SPEED", "1.05"))  # 11-03 사용자: 전환이 빨라 숫자를 못 봄
 TEMPLATE = settings.templates_dir / "motion.html"
 FONTS = settings.templates_dir.parent / "fonts"
+
+
+PAUSE = os.getenv("TTS_PAUSE", "0.9")  # 문장 사이 쉼: 숫자가 다 찬 뒤 멈춰 있는 시간
 
 
 class MotionUnavailable(RuntimeError):
@@ -114,6 +117,15 @@ def _pct_spoken(p: float) -> tuple[str, str]:
     return f"약 {num_ko(round(p))} 퍼센트예요.", f"{p:g}%예요."
 
 
+def _term_short(term: str) -> str:
+    """'Showerhead(샤워헤드)' → 샤워헤드, 'GPU 분할 가상화(Fractional GPU)' → GPU 분할 가상화"""
+    m = re.match(r"\s*([^()]+?)\s*\(([^()]+)\)\s*$", term or "")
+    if m:
+        a, b = m.groups()
+        return b if re.search(r"[가-힣]", b) and not re.search(r"[가-힣]", a) else a
+    return (term or "").strip()
+
+
 def stamp_text(facts, phase: str, today: date) -> str:
     if phase == "listing" and facts.listing_date:
         d = date.fromisoformat(facts.listing_date)
@@ -144,8 +156,8 @@ def script(facts, summary, hook, phase: str, today: date) -> list[Seg]:
         elif facts.band_low_krw and facts.band_high_krw:
             s.add("희망 공모가는").add(f"{num_ko(facts.band_low_krw)} 원에서", f"{facts.band_low_krw:,}원에서")
             s.add(f"{num_ko(facts.band_high_krw)} 원.", f"{facts.band_high_krw:,}원.")
-        s.add("주관사가 계산한 몸값은").add(f"{num_ko(v)} 원이에요.", f"{v:,}원이에요.")
-        segs.append(s)
+        segs.append(s)  # 공모가에서 한 번 쉬고 몸값 (같은 장면)
+        segs.append(Seg("value").add("주관사가 계산한 몸값은").add(f"{num_ko(v)} 원이에요.", f"{v:,}원이에요."))
     dr = facts.demand_ratio
     if dr:
         s = Seg("demand").add("기관 경쟁률은").add(f"{num_ko(int(dr))} 대 일.", f"{dr:,.2f}".rstrip("0").rstrip(".") + ":1.")
@@ -167,7 +179,7 @@ def script(facts, summary, hook, phase: str, today: date) -> list[Seg]:
 
 
 def tts_text(segs: list[Seg]) -> str:
-    return ' <break time="0.3s"/> '.join(s.spoken() for s in segs)
+    return f' <break time="{PAUSE}s"/> '.join(s.spoken() for s in segs)
 
 
 # ── TTS ──────────────────────────────────────────────────────────
@@ -212,6 +224,8 @@ def align(segs: list[Seg], words: list[dict], total: float) -> tuple[list[dict],
                 t += d
     scenes = []
     for j, s in enumerate(segs):
+        if scenes and scenes[-1]["scene"] == s.scene:  # 같은 장면이 이어지면 한 장면으로
+            continue
         t0 = 0.0 if j == 0 else max(0.0, starts[j] - 0.12)
         scenes.append({"scene": s.scene, "t0": t0})
     for j in range(len(scenes)):
@@ -288,11 +302,13 @@ def render(facts, summary, hook, phase: str, today: date, out: Path, *, clip: Pa
         total = round(dur + 0.9, 2)
         caps, scenes = align(segs, words or [], total)
         hook_t1 = scenes[0]["t1"] + 0.5
-        n_frames = _clip_frames(clip, clip_start, hook_t1, tmp / "clip") if clip and clip.exists() else 0
+        # 11-03 사용자: 훅 영상보다 정지 사진 위 모션 그래픽이 낫다 → 스톡 영상은 쓰지 않음 (MOTION_CLIP=1이면 예전처럼)
+        n_frames = _clip_frames(clip, clip_start, hook_t1, tmp / "clip") if clip and clip.exists() and os.getenv("MOTION_CLIP") == "1" else 0
         data = {
             "W": W, "H": H, "total": total, "scenes": scenes, "caps": caps,
             "hook": {"emoji": hook.emoji, "title": re.sub(r"'([^']+)'", r"<b>'\1'</b>", hook.title),
-                     "stamp": stamp_text(facts, phase, today)},
+                     "stamp": stamp_text(facts, phase, today), "sub": hook.sub, "term": _term_short(hook.term),
+                     "parts": list(getattr(hook, "parts", []) or [])},
             "about": {"lines": [l for l in (summary.business_lines or []) if l.strip()], "corp": facts.corp_name,
                       "meta": " · ".join(x for x in (facts.industry, facts.market) if x),
                       "explain": (hook.explain or "").lstrip(": ").strip()},

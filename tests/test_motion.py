@@ -1,5 +1,6 @@
 """모션 리포트: 숫자 읽기, 훅 말투, 대본·자막 맞추기"""
 import json
+import re
 import sys
 from datetime import date
 from pathlib import Path
@@ -36,19 +37,21 @@ def _labup():
 def test_script_numbers_come_from_facts_and_align():
     facts, summary, hook = _labup()
     segs = motion.script(facts, summary, hook, "listing", date(2026, 11, 2))
-    assert [s.scene for s in segs] == ["hook", "about", "value", "demand", "lockup", "outro"]
+    assert [s.scene for s in segs] == ["hook", "about", "value", "value", "demand", "lockup", "outro"]
     shown = " ".join(sh for s in segs for _, sh in s.tokens)
     assert "19,000원." in shown and "29,551원이에요." in shown and "284.53:1." in shown and "2.09%예요." in shown
     spoken = motion.tts_text(segs)
-    assert "만 구천 원" in spoken and "이만 구천오백오십일 원" in spoken and not any(ch.isdigit() for ch in spoken.replace('<break time="0.3s"/>', ""))
+    assert "만 구천 원" in spoken and "이만 구천오백오십일 원" in spoken and not any(ch.isdigit() for ch in re.sub(r"<break[^>]*>", "", spoken))
     # TTS가 띄어쓰기대로 단어를 돌려준다고 보고 맞추기
     words, t = [], 0.0
-    for w in spoken.replace('<break time="0.3s"/>', "").split():
+    for w in re.sub(r"<break[^>]*>", "", spoken).split():
         words.append({"word": w, "start": t, "end": t + 0.3}); t += 0.35
     caps, scenes = motion.align(segs, words, t + 1)
     assert caps[0]["s"] == 0.0 and scenes[0]["t0"] == 0.0 and scenes[-1]["t1"] == t + 1
     assert all(a["t1"] == b["t0"] for a, b in zip(scenes, scenes[1:]))
     assert any(c["d"] == "29,551원이에요." for c in caps)
+    assert [x["scene"] for x in scenes] == ["hook", "about", "value", "demand", "lockup", "outro"]
+    assert motion._term_short("Showerhead(샤워헤드)") == "샤워헤드" and motion._term_short("정전척") == "정전척"
 
 
 def test_stamp_and_credit():
