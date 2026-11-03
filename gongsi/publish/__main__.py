@@ -347,8 +347,17 @@ def cmd_watch(args) -> None:
     """생성 실행 끝에 승인을 그 자리에서 기다린다 (깃허브 예약 실행이 안 돌아서 30분 poll 대신, 2026-10-27).
     1분마다 poll. 승인·넘기기로 대기 중인 게 없어지면 끝, 최대 args.minutes분."""
     deadline = time.time() + args.minutes * 60
+    fails = 0
     while True:
-        cmd_poll(args)
+        try:  # 텔레그램·인스타 접속이 한 번 끊겨도 감시가 죽지 않게 (2026-11-02 18:54 연결 끊김으로 감시가 끝나 19시 게시를 놓침)
+            cmd_poll(args)
+            fails = 0
+        except Exception as e:  # noqa: BLE001
+            fails += 1
+            log("watch", error=str(e)[:300], fails=fails)
+            if fails >= 10:
+                _safe_notify(f"⚠️ 게시 감시가 10번 연속 실패했어요: {str(e)[:150]}")
+                fails = 0
         _git_sync(f"posts: watch {time.strftime('%F %H:%M')}")
         waiting = [p for p in store.all_posts() if p.meta.get("status") in ("pending", "approved", "blocked")]
         if not waiting or time.time() > deadline:
