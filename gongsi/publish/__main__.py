@@ -317,11 +317,24 @@ def _rerender(post: store.Post, idx: int) -> None:
     mark_used(video["id"])
     facts, summary = IpoFacts(**b["facts"]), Summary(**b["summary"])
     src = b.get("source_rcept_no") or post.rcept_no  # 후속편(상장 전날·확약 해제)은 게시물 이름에 꼬리가 붙어 있다
-    cap = cards.caption(facts, src, summary, b.get("doc", "증권신고서"), hook, credit="📷 자료 화면: Pixabay")
+    doc = b.get("doc", "증권신고서")
+    voiced = False
+    if os.getenv("MOTION", "1") != "0":  # 모션 리포트로 다시 (키가 없거나 실패하면 7초 훅 릴스)
+        from gongsi import motion
+        try:
+            video.update(motion.make_for(facts, summary, hook, b.get("phase", "pre"), slots.now_kst().date(), post.dir / name, video,
+                                         f"자료: DART {doc} {src} · 영상·사진 Pixabay · 투자 권유 아님"))
+            voiced = True
+        except Exception as e:  # noqa: BLE001
+            log("motion", rcept_no=post.rcept_no, ok=False, error=str(e)[:300])
+    cap = cards.caption(facts, src, summary, doc, hook, credit="📷 자료 화면: Pixabay")
     (post.dir / "caption.txt").write_text(cap, encoding="utf-8")
     if post.meta.get("format") == "both":  # 캐러셀(자세한 판) + 릴스(짧은 판) 둘 다 새 훅으로
-        (post.dir / "caption_reel.txt").write_text(
-            cards.reel_caption(facts, src, summary, b.get("doc", "증권신고서"), hook, credit="📷 자료 화면: Pixabay"), encoding="utf-8")
+        rc = cards.reel_caption(facts, src, summary, doc, hook, credit="📷 자료 화면: Pixabay")
+        if voiced:
+            from gongsi.motion import credit
+            rc = credit(rc)
+        (post.dir / "caption_reel.txt").write_text(rc, encoding="utf-8")
     b.update(chosen=idx, video=video)
     path.write_text(json.dumps(b, ensure_ascii=False), encoding="utf-8")
     post.meta.update(reel=name, status="pending")

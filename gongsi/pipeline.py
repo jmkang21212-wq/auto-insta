@@ -22,6 +22,7 @@ from gongsi.db import DB
 from gongsi.hook import line2, make_hooks, phase_title, previous_hook
 from gongsi.models import Disclosure
 from gongsi.logos import fetch_logo
+from gongsi import motion
 from gongsi.reel import make_reel
 from gongsi.render import render
 from gongsi.select import select
@@ -240,6 +241,19 @@ def run(adapter: Adapter, date_from: str, date_to: str, only_rcept: str | None, 
                 logo_path, logo_how = fetch_logo(facts.corp_name, facts.homepage)
                 log("logo", corp=d.corp_name, homepage=facts.homepage, result=logo_how)
                 paths, image_log = render(card_list, facts.corp_name, facts.industry or "", out, d.rcept_no)
+                # 모션 리포트 (2026-11-03): 7초 훅 릴스를 20초 안팎 움직이는 리포트 + AI 음성으로 바꾼다. 실패하면 7초 훅 릴스 그대로
+                if reel_meta and os.getenv("MOTION", "1") != "0":
+                    try:
+                        mm = motion.make_for(facts, summary, hook, phase, today, out / f"{d.rcept_no}_reel.mp4", reel_meta,
+                                             f"자료: DART {doc} {src} · 영상·사진 Pixabay · 투자 권유 아님")
+                        reel_meta.update(mm)
+                        reel_cap = motion.credit(reel_cap) if reel_cap else reel_cap
+                        log("motion", corp=d.corp_name, ok=True, seconds=mm["seconds"], scenes=mm["scenes"])
+                    except motion.MotionUnavailable as e:
+                        log("motion", corp=d.corp_name, ok=False, skipped=str(e))
+                    except Exception as e:  # noqa: BLE001
+                        log("motion", corp=d.corp_name, ok=False, error=str(e)[:300])
+                        _tell(f"⚠️ {d.corp_name}: 모션 릴스 실패, 7초 훅 릴스로 나감\n{str(e)[:150]}")
                 (out / f"{d.rcept_no}_caption.txt").write_text(cap, encoding="utf-8")
                 if reel_cap:
                     (out / f"{d.rcept_no}_caption_reel.txt").write_text(reel_cap, encoding="utf-8")

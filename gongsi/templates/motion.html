@@ -1,0 +1,215 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>
+/*FONTS*/
+:root{--bg:#0B0D12;--ink:#F2F4F6;--mute:#AEB6C1;--dim:#8B95A1;--blue:#5EA9FF;--blue2:#2F6FDB;--gold:#F5C84B;--line:#2A2F3A}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:1080px;height:1920px;overflow:hidden;background:var(--bg);font-family:P,sans-serif;color:var(--ink);letter-spacing:-0.02em;word-break:keep-all}
+.full{position:absolute;inset:0}
+.bgimg{position:absolute;left:-54px;top:-96px;width:1188px;height:2112px;object-fit:cover;will-change:transform,opacity}
+.scene{position:absolute;inset:0;opacity:0;will-change:transform,opacity}
+.abs{position:absolute}
+.c{left:60px;right:60px;text-align:center}
+.lab{font-weight:700;font-size:42px;color:var(--mute)}
+.num{font-weight:900;font-variant-numeric:tabular-nums;letter-spacing:-0.03em}
+.gold{color:var(--gold)} .blue{color:var(--blue)}
+.shadow{text-shadow:0 6px 30px rgba(0,0,0,.65)}
+.bar{height:34px;border-radius:17px}
+.dot{position:absolute;width:26px;height:26px;border-radius:50%}
+.chip{display:inline-block;padding:16px 30px;border-radius:20px;background:rgba(11,13,18,.62);border:2px solid rgba(255,255,255,.16);backdrop-filter:blur(6px)}
+#top{position:absolute;left:0;right:0;top:288px;text-align:center}
+#top span{display:inline-block;padding:12px 28px;border-radius:999px;font-weight:700;font-size:32px;background:rgba(94,169,255,.16);color:var(--blue);border:2px solid rgba(94,169,255,.4)}
+#cap{position:absolute;left:70px;right:70px;top:1388px;text-align:center;font-weight:800;font-size:52px;line-height:1.32}
+#cap span{text-shadow:0 4px 18px rgba(0,0,0,.85)}
+#src{position:absolute;left:0;right:0;top:1552px;text-align:center;font-size:25px;color:rgba(200,206,214,.55);font-weight:500}
+#hookTitle b{color:var(--gold);font-weight:900}
+</style></head>
+<body>
+<canvas id="grid" class="full" width="1080" height="1920"></canvas>
+<img id="bgClip" class="bgimg" style="left:0;top:0;width:1080px;height:1920px;opacity:0">
+<img id="bgHero" class="bgimg" style="opacity:0">
+<img id="bgBack" class="bgimg" style="opacity:0">
+<div class="full" id="shade" style="background:linear-gradient(180deg,rgba(11,13,18,.82) 0%,rgba(11,13,18,.15) 30%,rgba(11,13,18,.25) 62%,rgba(11,13,18,.92) 100%)"></div>
+<div id="top"><span>ipov · 공모주</span></div>
+
+<div class="scene" id="s-hook">
+  <div class="abs c shadow" style="top:420px">
+    <div id="hookEmoji" style="font-size:120px;line-height:1"></div>
+    <div id="hookTitle" style="margin-top:26px;font-weight:900;font-size:90px;line-height:1.16"></div>
+  </div>
+  <div class="abs" id="stamp" style="left:540px;top:1180px">
+    <div id="stampIn" style="transform:translate(-50%,-50%)"><span id="stampTxt" style="display:inline-block;white-space:nowrap;background:var(--gold);color:#111;padding:18px 40px;border-radius:20px;font-weight:900;font-size:58px;box-shadow:0 16px 40px rgba(0,0,0,.45)"></span></div>
+  </div>
+</div>
+
+<div class="scene" id="s-about">
+  <div class="abs c" style="top:440px">
+    <div id="logoBox" style="display:inline-flex;align-items:center;border-radius:26px;padding:22px 42px;box-shadow:0 20px 60px rgba(0,0,0,.45)"><img id="logoImg" style="height:84px"></div>
+    <div id="corpName" class="shadow" style="font-weight:900;font-size:64px;margin-top:22px"></div>
+    <div id="aboutMeta" class="lab shadow" style="margin-top:6px;font-size:36px"></div>
+  </div>
+  <div class="abs c shadow" id="aboutLines" style="top:820px;font-weight:800;font-size:66px;line-height:1.25"></div>
+  <div class="abs c" style="top:1150px"><span class="chip" id="aboutExplain" style="font-weight:600;font-size:32px;color:var(--mute)"></span></div>
+</div>
+
+<div class="scene" id="s-value">
+  <div class="abs" style="left:110px;right:110px;top:470px">
+    <div class="lab shadow" id="v1lab">확정 공모가</div>
+    <div class="num shadow" style="font-size:124px;margin-top:6px" id="v1">0원</div>
+    <div class="bar" style="background:rgba(42,47,58,.9);margin-top:18px"><div class="bar" id="vb1" style="width:0;background:#B0B8C1"></div></div>
+    <div style="height:110px"></div>
+    <div class="lab shadow" id="v2lab">주관사가 계산한 <span class="blue">주당 몸값</span></div>
+    <div class="num blue shadow" style="font-size:150px;margin-top:6px" id="v2">0원</div>
+    <div class="bar" id="vb2w" style="background:rgba(42,47,58,.9);margin-top:18px"><div class="bar" id="vb2" style="width:0;background:linear-gradient(90deg,var(--blue2),var(--blue))"></div></div>
+    <div class="shadow" style="margin-top:34px;font-size:30px;color:var(--mute);font-weight:600" id="vnote"></div>
+  </div>
+</div>
+
+<div class="scene" id="s-demand">
+  <div class="abs c lab shadow" style="top:450px">기관 수요예측 경쟁률</div>
+  <div class="abs c num shadow" style="top:510px;font-size:170px" id="dr">0 : 1</div>
+  <div id="dots" class="abs" style="left:150px;top:790px;width:780px;height:520px"></div>
+</div>
+
+<div class="scene" id="s-ring">
+  <div class="abs c lab shadow" style="top:450px" id="ringLab"></div>
+  <svg class="abs" style="left:240px;top:560px" width="600" height="600" viewBox="0 0 600 600">
+    <circle cx="300" cy="300" r="230" fill="none" stroke="rgba(42,47,58,.92)" stroke-width="64"/>
+    <circle id="arc" cx="300" cy="300" r="230" fill="none" stroke="#F5C84B" stroke-width="64" transform="rotate(-90 300 300)" stroke-dasharray="0 2000"/>
+  </svg>
+  <div class="abs c num gold shadow" style="top:770px;font-size:150px" id="ringPct">0%</div>
+  <div class="abs c shadow" style="top:1215px;font-size:34px;color:var(--mute);font-weight:600" id="ringNote"></div>
+</div>
+
+<div class="scene" id="s-sched">
+  <div class="abs c lab shadow" style="top:520px">청약 일정</div>
+  <div class="abs c num shadow" style="top:600px;font-size:150px" id="schedBig"></div>
+  <div class="abs c shadow" style="top:840px;font-size:40px;color:var(--mute);font-weight:700" id="schedSub"></div>
+</div>
+
+<div class="scene" id="s-outro">
+  <div class="abs c" style="top:600px">
+    <div class="shadow" style="font-weight:900;font-size:180px;letter-spacing:-0.05em">ipov<span class="gold">.</span></div>
+    <div style="font-weight:700;font-size:44px;color:var(--mute);margin-top:4px">숫자로 보는 공모주</div>
+    <div class="shadow" style="margin-top:90px;font-weight:800;font-size:58px">자세한 숫자는 <span class="blue">캡션</span>에 👇</div>
+  </div>
+</div>
+
+<div id="cap"></div>
+<div id="src"></div>
+
+<script>
+const D=__DATA__;
+const clamp=(x,a=0,b=1)=>Math.max(a,Math.min(b,x));
+const prog=(t,a,b)=>clamp((t-a)/(b-a));
+const eo=x=>1-Math.pow(1-x,3);
+const eio=x=>x<.5?4*x*x*x:1-Math.pow(-2*x+2,3)/2;
+const back=x=>{const c1=1.70158,c3=c1+1;return 1+c3*Math.pow(x-1,3)+c1*Math.pow(x-1,2)};
+const lerp=(a,b,x)=>a+(b-a)*x;
+const fmt=n=>Math.round(n).toLocaleString('ko-KR');
+const $=id=>document.getElementById(id);
+const sc=Object.fromEntries(D.scenes.map(s=>[s.scene,s]));
+const XF=0.35;
+
+// 배경 격자 (사진이 없을 때 대비)
+const g=$('grid').getContext('2d');
+function grid(t){g.fillStyle='#0B0D12';g.fillRect(0,0,1080,1920);
+  const gx=540+Math.sin(t*.5)*220,gy=820+Math.cos(t*.37)*160;let r=g.createRadialGradient(gx,gy,0,gx,gy,900);
+  r.addColorStop(0,'rgba(47,111,219,.28)');r.addColorStop(1,'rgba(47,111,219,0)');g.fillStyle=r;g.fillRect(0,0,1080,1920);
+  g.strokeStyle='rgba(255,255,255,.035)';g.lineWidth=2;const o=(t*18)%90;
+  for(let x=-90+o;x<1080;x+=90){g.beginPath();g.moveTo(x,0);g.lineTo(x,1920);g.stroke()}
+  for(let y=-90+o;y<1920;y+=90){g.beginPath();g.moveTo(0,y);g.lineTo(1080,y);g.stroke()}}
+
+// 정적 내용 채우기
+$('hookEmoji').textContent=D.hook.emoji||'';
+$('hookTitle').innerHTML=D.hook.title;
+$('stampTxt').textContent=D.hook.stamp;
+if(D.logo){$('logoImg').src=D.logo;$('logoBox').style.background=D.logoTone==='light'?'rgba(255,255,255,.08)':'#fff';
+  if(D.logoTone==='light')$('logoBox').style.border='2px solid rgba(255,255,255,.18)'}else{$('logoBox').style.display='none'}
+$('corpName').textContent=D.logo?'':D.about.corp;
+$('aboutMeta').textContent=D.about.meta;
+$('aboutLines').innerHTML=D.about.lines.join('<br>');
+if(D.about.explain){$('aboutExplain').textContent=D.about.explain}else{$('aboutExplain').style.display='none'}
+$('src').textContent=D.source;
+const V=D.value, hasPrice=!!V.price, vtop=Math.max(V.val||0,V.price||V.high||0)||1;
+$('v1lab').textContent=hasPrice?'확정 공모가':'희망 공모가';
+const v1End=hasPrice?V.price:V.high;
+if(V.model&&V.mult)$('vnote').textContent=`비슷한 상장사 ${V.model} ${V.mult}배로 계산 · 신고서는 상장 뒤 적정주가가 아니라고 밝힘`;
+else $('vnote').textContent='신고서는 이 값이 상장 뒤 적정주가가 아니라고 밝힘';
+// 경쟁률 점
+const dots=[];{const box=$('dots');for(let i=0;i<285;i++){const d=document.createElement('div');d.className='dot';
+  d.style.left=((i%19)*41)+'px';d.style.top=(Math.floor(i/19)*34)+'px';d.style.background=i==0?'#F5C84B':'#5EA9FF';box.appendChild(d);dots.push(d)}}
+// 도넛: 확약 또는 유통
+const ring=sc.lockup?{pct:D.demand.lock,lab:'상장 뒤 <span class="gold">안 팔겠다고 약속한</span> 기관 물량',note:`나머지 ${String(parseFloat((100-D.demand.lock).toFixed(2)))}%는 확약 없음`,s:sc.lockup}
+          :sc.float?{pct:D.float.pct,lab:'상장 첫날 <span class="blue">팔 수 있는</span> 물량',note:'',s:sc.float}:null;
+if(ring){$('ringLab').innerHTML=ring.lab;$('ringNote').textContent=ring.note;if(sc.float&&!sc.lockup){$('arc').setAttribute('stroke','#5EA9FF');$('ringPct').classList.remove('gold');$('ringPct').classList.add('blue')}}
+if(D.sched.s){const f=s=>`${+s.slice(5,7)}.${s.slice(8,10)}`;$('schedBig').textContent=`${f(D.sched.s)}~${f(D.sched.e).split('.')[1]}`;$('schedSub').textContent=D.hook.stamp}
+const IMG={hero:D.img.hero,back:D.img.back};
+if(IMG.hero)$('bgHero').src=IMG.hero;if(IMG.back)$('bgBack').src=IMG.back;
+
+// 자막 덩어리
+const chunks=[];{let cur=[],len=0;for(const w of D.caps){cur.push(w);len+=w.d.length+1;
+  if(/[.,]$/.test(w.d)||len>=15){chunks.push(cur);cur=[];len=0}}if(cur.length)chunks.push(cur)}
+
+function capT(sub,s){for(const c of D.caps){if(c.d.includes(sub)&&c.s>=s.t0-0.05&&c.s<=s.t1)return c}return null}
+function vis(s,t){if(!s)return 0;return prog(t,s.t0-XF/2,s.t0+XF/2)*(1-prog(t,s.t1-XF/2,s.t1+XF/2))}
+function local(s,t){return t-s.t0}
+
+async function setT(t){
+  grid(t);
+  const H=sc.hook,hv=vis(H,t);
+  // 배경: 훅 = 영상 프레임 → 나머지 = 사진
+  let wait=null;
+  if(D.clip.n&&t<H.t1+XF){const i=Math.min(D.clip.n,Math.max(1,Math.floor(t*30)+1));const src=`${D.clip.dir}/f${String(i).padStart(4,'0')}.jpg`;
+    const im=$('bgClip');if(im.dataset.src!==src){im.dataset.src=src;im.src=src;wait=im.decode().catch(()=>{})}}
+  $('bgClip').style.opacity=D.clip.n?hv:0;
+  $('bgClip').style.transform=`scale(${1.04+0.05*prog(t,0,H.t1)})`;
+  const heroScenes=['about'];const aboutV=vis(sc.about,t);
+  const heroOp=IMG.hero?(D.clip.n?aboutV:Math.max(hv,aboutV)):0;
+  $('bgHero').style.opacity=heroOp;$('bgHero').style.transform=`scale(${1.0+0.08*prog(t,0,(sc.about||H).t1)}) translateY(${-20*prog(t,0,(sc.about||H).t1)}px)`;
+  const backOp=IMG.back?clamp(1-hv-aboutV):0;
+  $('bgBack').style.opacity=backOp;$('bgBack').style.transform=`scale(${1.02+0.06*prog(t,0,D.total)}) translateX(${lerp(-24,24,prog(t,0,D.total))}px)`;
+  $('shade').style.opacity=0.75+0.25*hv;
+
+  // 1. 훅
+  $('s-hook').style.opacity=hv;
+  {const u=local(H,t);const e=back(prog(u,0.05,0.55));
+   $('hookEmoji').style.transform=`scale(${e}) rotate(${lerp(-20,0,eo(prog(u,0.05,0.6)))}deg)`;
+   $('hookTitle').style.opacity=eo(prog(u,0.15,0.55));$('hookTitle').style.transform=`translateY(${(1-eo(prog(u,0.15,0.6)))*50}px)`;
+   const st=prog(u,Math.min(1.6,H.t1*0.55),Math.min(1.95,H.t1*0.55+0.35));$('stamp').style.opacity=clamp(st*3);
+   $('stampIn').style.transform=`translate(-50%,-50%) rotate(${lerp(-14,-4,back(st))}deg) scale(${lerp(1.8,1,eo(st))})`;}
+  // 2. 사업
+  if(sc.about){const s=sc.about,u=local(s,t);$('s-about').style.opacity=aboutV;
+    const a=back(prog(u,0.0,0.5));$('logoBox').style.transform=`scale(${0.6+0.4*a})`;
+    $('aboutLines').style.opacity=eo(prog(u,0.25,0.7));$('aboutLines').style.transform=`translateY(${(1-eo(prog(u,0.25,0.75)))*40}px)`;
+    $('aboutExplain').style.opacity=eo(prog(u,1.0,1.4));}
+  // 3. 몸값
+  if(sc.value){const s=sc.value,u=local(s,t),v=vis(s,t);$('s-value').style.opacity=v;$('s-value').style.transform=`translateY(${(1-eo(prog(u,0,0.5)))*60}px)`;
+    const d1=s.t1-s.t0;const k1=capT(fmt(v1End)+'원',s);const c1=k1?eio(prog(t,Math.min(k1.s-0.25,s.t0+0.15),k1.e)):eio(prog(u,0.15,Math.min(1.4,d1*0.3)));
+    $('v1').textContent=hasPrice?fmt(V.price*c1)+'원':`${fmt(V.low*c1)}~${fmt(V.high*c1)}원`;$('vb1').style.width=(100*v1End/vtop*c1)+'%';
+    const k2a=capT('몸값',s);const r2=k2a?eo(prog(t,k2a.s-0.5,k2a.s-0.15)):eo(prog(u,d1*0.33,d1*0.33+0.35));['v2lab','v2','vb2w'].forEach(id=>$(id).style.opacity=r2);
+    const k2=capT(fmt(V.val)+'원',s);const c2=k2?eio(prog(t,k2.s-0.25,k2.e)):eio(prog(u,d1*0.55,d1*0.85));$('v2').textContent=fmt(lerp(v1End,V.val,c2))+'원';$('vb2').style.width=lerp(100*v1End/vtop,100*V.val/vtop,c2)+'%';
+    $('vnote').style.opacity=eo(prog(u,d1*0.85,d1*0.85+0.4));}
+  // 4. 경쟁률
+  if(sc.demand){const s=sc.demand,u=local(s,t),v=vis(s,t);$('s-demand').style.opacity=v;const d=s.t1-s.t0;
+    const kd=capT(':1',s);const c=kd?eio(prog(t,kd.s-0.35,kd.e)):eio(prog(u,0.6,Math.max(1.2,d-0.6)));$('dr').innerHTML=`${(D.demand.ratio*c).toFixed(2).replace(/\.00$/,'')}<span style="color:#8B95A1"> : </span>1`;
+    dots.forEach((el,i)=>{const at=0.6+(i/285)*Math.max(0.6,d-1.2);const x=prog(u,at,at+0.18);el.style.opacity=x;el.style.transform=`scale(${back(x)})`});}
+  // 5. 도넛
+  if(ring){const s=ring.s,u=local(s,t),v=vis(s,t);$('s-ring').style.opacity=v;$('s-ring').style.transform=`scale(${0.94+0.06*eo(prog(u,0,0.5))})`;
+    const d=s.t1-s.t0;const L=2*Math.PI*230;const kr=capT('%',s)||capT('퍼센트',s);const k=kr?eio(prog(t,kr.s-0.6,kr.e)):eio(prog(u,d*0.45,d*0.85));
+    $('arc').setAttribute('stroke-dasharray',`${L*ring.pct/100*k} ${L}`);$('ringPct').textContent=String(parseFloat((ring.pct*k).toFixed(2)))+'%';
+    $('ringNote').style.opacity=eo(prog(u,d*0.85,d*0.85+0.35));}
+  // 6. 일정
+  if(sc.sched){const s=sc.sched,u=local(s,t),v=vis(s,t);$('s-sched').style.opacity=v;$('schedBig').style.transform=`scale(${0.85+0.15*back(prog(u,0,0.5))})`}
+  // 7. 마무리
+  if(sc.outro){const s=sc.outro,u=local(s,t);$('s-outro').style.opacity=vis(s,t);$('s-outro').style.transform=`scale(${0.92+0.08*eo(prog(u,0,0.5))})`}
+
+  // 자막
+  let cur=null;for(const ch of chunks){if(t>=ch[0].s-0.05&&t<=ch[ch.length-1].e+0.25)cur=ch}
+  $('cap').innerHTML=cur?cur.map(w=>`<span style="color:${t>=w.s?'#F2F4F6':'rgba(242,244,246,.4)'}">${w.d.replace(/[,.]$/,'')}</span>`).join(' '):'';
+  if(wait)await wait;
+}
+window.setT=setT;
+Promise.all([...document.images].filter(i=>i.src).map(i=>i.decode().catch(()=>{}))).then(()=>document.fonts.ready).then(()=>{window.ready=true});
+</script>
+</body></html>
