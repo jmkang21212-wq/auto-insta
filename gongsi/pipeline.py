@@ -243,11 +243,12 @@ def run(adapter: Adapter, date_from: str, date_to: str, only_rcept: str | None, 
                 paths, image_log = render(card_list, facts.corp_name, facts.industry or "", out, d.rcept_no)
                 # 모션 리포트 (2026-11-03): 7초 훅 릴스를 20초 안팎 움직이는 리포트 + AI 음성으로 바꾼다. 실패하면 7초 훅 릴스 그대로
                 motion_ok = False
-                if reel_meta and os.getenv("MOTION", "1") != "0":
+                # 훅 비유 영상을 못 찾은 날도 첫 장면을 카드 1장 사진으로 해서 만든다 (2026-11-03 이에스티: 영상 0개라 카드뉴스로 나감)
+                if hook and os.getenv("MOTION", "1") != "0":
                     try:
                         mm = motion.make_for(facts, summary, hook, phase, today, out / f"{d.rcept_no}_reel.mp4", reel_meta,
-                                             f"자료: DART {doc} {src} · 영상·사진 Pixabay · 투자 권유 아님")
-                        reel_meta.update(mm)
+                                             f"자료: DART {doc} {src} · 사진·영상 Pixabay · 투자 권유 아님")
+                        reel_meta = {**(reel_meta or {}), **mm}
                         # 2026-11-03 결정: 모션 리포트가 카드뉴스를 대신한다 → 릴스 하나만, 캡션은 자세한 판(+AI 음성 표기)
                         motion_ok = True
                         cap = motion.credit(cap)

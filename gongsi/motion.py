@@ -367,4 +367,8 @@ def credit(caption: str) -> str:
         return caption
     if "📷 자료 화면: Pixabay" in caption:
         return caption.replace("📷 자료 화면: Pixabay", "📷 자료 화면: Pixabay\n" + AI_VOICE_LINE, 1)
+    lines = caption.rstrip().split("\n")
+    for i, l in enumerate(lines):  # '※ 투자 권유 아님' 줄 바로 위에 (해시태그 뒤로 밀리지 않게)
+        if l.startswith("※"):
+            return "\n".join(lines[:i] + ["📷 사진·영상: Pixabay", AI_VOICE_LINE] + lines[i:])
     return caption.rstrip() + "\n" + AI_VOICE_LINE
