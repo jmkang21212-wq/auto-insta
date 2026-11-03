@@ -5,15 +5,10 @@
  "n": 6,
  "status": "pending",
  "source_run": "run1",
- "format": "carousel",
- "reel": null,
+ "format": "reel",
+ "reel": "reel_m.mp4",
  "phase": "listing",
  "subscription_start": "2026-10-22",
  "market": "KR",
- "publish_at": "2026-11-03T13:00:00+09:00",
- "telegram": {
-  "message_id": 206,
-  "chat_id": 8647980564,
-  "sent_at": "2026-11-03T11:08:47.663107+09:00"
- }
+ "publish_at": "2026-11-03T13:00:00+09:00"
 }

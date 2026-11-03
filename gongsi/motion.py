@@ -108,9 +108,10 @@ def spoken_title(title: str) -> str:
 
 
 def _pct_spoken(p: float) -> tuple[str, str]:
+    """(읽는 말, 자막) 1% 미만은 '1%도 안 돼요'로 읽고 자막엔 실제 숫자"""
     if p < 1:
-        return "일 퍼센트도 안 돼요.", f"{p:g}%"
-    return f"약 {num_ko(round(p))} 퍼센트예요.", f"{p:g}%"
+        return "일 퍼센트도 안 돼요.", f"{p:g}%, 1%도 안 돼요."
+    return f"약 {num_ko(round(p))} 퍼센트예요.", f"{p:g}%예요."
 
 
 def stamp_text(facts, phase: str, today: date) -> str:
@@ -147,14 +148,14 @@ def script(facts, summary, hook, phase: str, today: date) -> list[Seg]:
         segs.append(s)
     dr = facts.demand_ratio
     if dr:
-        s = Seg("demand").add("기관 경쟁률은").add(f"{num_ko(int(dr))} 대 일.", f"{dr:,.2f}:1.".replace(".00:", ":"))
+        s = Seg("demand").add("기관 경쟁률은").add(f"{num_ko(int(dr))} 대 일.", f"{dr:,.2f}".rstrip("0").rstrip(".") + ":1.")
         segs.append(s)
         if facts.lockup_ratio_pct is not None:
             sp, sh = _pct_spoken(facts.lockup_ratio_pct)
-            segs.append(Seg("lockup").add("그런데 상장 뒤에 안 팔겠다고 약속한 물량은,").add(sp, f"{sh}예요." if not sp.startswith("일") else sp))
+            segs.append(Seg("lockup").add("그런데 상장 뒤에 안 팔겠다고 약속한 물량은,").add(sp, sh))
     elif facts.float_ratio_pct:
         sp, sh = _pct_spoken(facts.float_ratio_pct)
-        s = Seg("float").add("상장 첫날 팔 수 있는 물량은").add(sp, f"{sh}예요." if not sp.startswith("일") else sp)
+        s = Seg("float").add("상장 첫날 팔 수 있는 물량은").add(sp, sh)
         segs.append(s)
         if facts.subscription_start and facts.subscription_end:
             segs.append(Seg("sched").add("청약은").add(f"{date_ko(facts.subscription_start)}부터",

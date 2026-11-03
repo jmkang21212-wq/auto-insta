@@ -181,7 +181,18 @@ def gen_pixabay(card_n: int, industry: str, out: Path) -> None:
         except Exception:
             pass
     tried = []
-    for q, must in photo_queries(card_n, industry):
+    # 업종 검색어 → 업종 묶음 기본 검색어 → 업종 무관 어두운 배경 순 (2026-11-03: 정전척·반도체 부품은 업종 사진이 비전에서 전부 떨어져
+    # 카드·모션 둘 다 그라데이션으로 나감. 사진 없는 것보다 차분한 일반 배경이 낫다)
+    tiers = [(q, m, industry) for q, m in photo_queries(card_n, industry)]
+    seen = {q for q, _, _ in tiers}
+    theme = PHOTO_QUERIES[theme_for(industry)]
+    for q, m in theme[1 if card_n == 2 else 0] + theme[0]:
+        if q not in seen:
+            tiers.append((q, m, industry)); seen.add(q)
+    for q, m in PHOTO_QUERIES["abstract"][0]:
+        if q not in seen:
+            tiers.append((q, m, "업종과 무관한 어두운 기술·도시 분위기 배경")); seen.add(q)
+    for q, must, ind in tiers:
         r = requests.get("https://pixabay.com/api/", params={"key": key, "q": q, "image_type": "photo",
                          "orientation": "vertical", "per_page": 30, "safesearch": "true", "min_width": 1000, "order": "popular"}, timeout=30)
         r.raise_for_status()
@@ -196,13 +207,13 @@ def gen_pixabay(card_n: int, industry: str, out: Path) -> None:
         for _ in range(3):  # 태그로 고른 뒤, 실제 그림을 Claude 비전이 한 번 더 본다 (남의 상표·글자·낡은 느낌·무관한 피사체 탈락)
             if not pool:
                 break
-            h = pick_hit(industry, purpose, pool)
+            h = pick_hit(ind, purpose, pool)
             if h is None:  # 태그만 보고 전부 무관하다고 하면, 다운로드 1위를 비전 판정에 넘겨 본다 (비전이 더 정확)
                 tried[-1] += "(claude:none)"
                 h = pool[0]
             img = requests.get(h["webformatURL"], timeout=60)  # 판정용 작은 그림
             img.raise_for_status()
-            verdict = photo_ok(industry, purpose, img.content)
+            verdict = photo_ok(ind, purpose, img.content)
             if verdict is False:
                 tried[-1] += f"(vision:no {h.get('id')})"
                 pool = [x for x in pool if x.get("id") != h.get("id")]
@@ -218,6 +229,17 @@ def gen_pixabay(card_n: int, industry: str, out: Path) -> None:
     raise RuntimeError("pixabay 태그 일치 결과 없음: " + ", ".join(tried))
 
 
+def _mime(data: bytes) -> str:
+    """Pixabay 'webformat'이 PNG일 때가 있다 (2026-11-03 jpeg로 보내 400)"""
+    if data[:8] == b"\x89PNG\r\n\x1a\n":
+        return "image/png"
+    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return "image/webp"
+    if data[:3] == b"GIF":
+        return "image/gif"
+    return "image/jpeg"
+
+
 def photo_ok(industry: str, purpose: str, data: bytes) -> bool | None:
     """Claude 비전: 카드 배경으로 써도 되는 사진인가. 키 없으면 None(판정 생략).
     탈락 기준: 읽을 수 있는 회사명·브랜드 로고·글자(남의 상표가 카드에 실리면 안 됨), 사람 얼굴, 낡고 녹슨 느낌, 업종과 무관한 피사체."""
@@ -230,7 +252,7 @@ def photo_ok(industry: str, purpose: str, data: bytes) -> bool | None:
 
     client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
     msg = client.messages.create(model=MODEL, max_tokens=1500, messages=[{"role": "user", "content": [
-        {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": base64.b64encode(data).decode()}},
+        {"type": "image", "source": {"type": "base64", "media_type": _mime(data), "data": base64.b64encode(data).decode()}},
         {"type": "text", "text": f"이 사진을 '{industry}' 업종 공모주 카드뉴스의 {purpose}으로 써도 될까요?\n"
                                  "다음 중 하나라도 있으면 '아니오': 읽을 수 있는 회사명·브랜드 로고·제품명 글자, 사람 얼굴, 낡고 녹슬고 더러운 느낌, 업종과 상관없는 피사체(예: 반도체 부품에 옛날 라디오), 저화질.\n"
                                  "'예' 또는 '아니오'만 답하세요."}]}])
