@@ -1,0 +1,14 @@
+{
+ "corp": "이에스티",
+ "rcept_no": "20261027000044",
+ "date": "2026-11-03",
+ "n": 6,
+ "status": "pending",
+ "source_run": "run1",
+ "format": "carousel",
+ "reel": null,
+ "phase": "listing",
+ "subscription_start": "2026-10-22",
+ "market": "KR",
+ "publish_at": "2026-11-03T13:00:00+09:00"
+}

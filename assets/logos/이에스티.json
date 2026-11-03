@@ -1,0 +1,22 @@
+{
+ "corp": "이에스티",
+ "homepage": "http://www.estech.asia",
+ "source": "https://www.estek.co.kr/img/logo.png",
+ "alt": "로고",
+ "picked_by": "claude",
+ "tone": "dark",
+ "candidates": [
+  "https://www.estek.co.kr/img/logo.png",
+  "https://www.estek.co.kr/img/ft_logo.jpg",
+  "https://www.estek.co.kr/favicon.ico",
+  "https://www.estek.co.kr/img/main_cert4.jpg",
+  "https://www.estek.co.kr/img/main_cert3.jpg",
+  "https://www.estek.co.kr/img/main_cert6.jpg",
+  "https://www.estek.co.kr/img/main_cert1.jpg",
+  "https://www.estek.co.kr/img/main_cert7.jpg",
+  "https://www.estek.co.kr/img/main_cert9.jpg",
+  "https://www.estek.co.kr/img/main_cert5.jpg",
+  "https://www.estek.co.kr/img/main_cert2.jpg",
+  "https://www.estek.co.kr/img/main_cert8.jpg"
+ ]
+}
