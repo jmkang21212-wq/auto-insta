@@ -37,7 +37,7 @@ def _labup():
 def test_script_numbers_come_from_facts_and_align():
     facts, summary, hook = _labup()
     segs = motion.script(facts, summary, hook, "listing", date(2026, 11, 2))
-    assert [s.scene for s in segs] == ["hook", "about", "define", "value", "value", "demand", "lockup", "outro"]
+    assert [s.scene for s in segs] == ["hook", "about", "define", "value", "value", "demand", "lockup", "recap", "ask"]
     shown = " ".join(sh for s in segs for _, sh in s.tokens)
     assert "19,000원." in shown and "29,551원이에요." in shown and "284.53:1." in shown and "2.09%예요." in shown
     spoken = motion.tts_text(segs)
@@ -50,7 +50,7 @@ def test_script_numbers_come_from_facts_and_align():
     assert caps[0]["s"] == 0.0 and scenes[0]["t0"] == 0.0 and scenes[-1]["t1"] == t + 1
     assert all(a["t1"] == b["t0"] for a, b in zip(scenes, scenes[1:]))
     assert any(c["d"] == "29,551원이에요." for c in caps)
-    assert [x["scene"] for x in scenes] == ["hook", "about", "define", "value", "demand", "lockup", "outro"]
+    assert [x["scene"] for x in scenes] == ["hook", "about", "define", "value", "demand", "lockup", "recap", "ask"]
     assert motion._term_short("Showerhead(샤워헤드)") == "샤워헤드" and motion._term_short("정전척") == "정전척"
 
 

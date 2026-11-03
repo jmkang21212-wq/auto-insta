@@ -191,8 +191,40 @@ def script(facts, summary, hook, phase: str, today: date) -> list[Seg]:
                                                        f"{int(facts.subscription_start[5:7])}월 {int(facts.subscription_start[8:10])}일부터")
                         .add(f"{date_ko(facts.subscription_end)}까지예요.",
                              f"{int(facts.subscription_end[5:7])}월 {int(facts.subscription_end[8:10])}일까지예요."))
-    segs.append(Seg("outro").add("자세한 숫자는 캡션에 정리했어요."))
+    # 마무리 (11-03 사용자: "결론이 뭐야" → 숫자 정리 + 시청자에게 묻는 질문. 판단을 대신하지 않고 묻기만 한다)
+    rc, rows = recap(facts)
+    if rc.tokens:
+        segs.append(rc)
+    segs.append(Seg("ask").add(ask_line(phase)).add("댓글로 알려 주세요."))
     return segs
+
+
+def recap(facts) -> tuple[Seg, list[dict]]:
+    """정리 문장과 화면 줄. 경쟁률·확약·첫날 유통 물량 (있는 것만), 없으면 몸값·유통"""
+    s, rows = Seg("recap").add("정리하면,"), []
+    items = []
+    if facts.demand_ratio:
+        r = facts.demand_ratio
+        shown = f"{r:,.2f}".rstrip("0").rstrip(".") + ":1"
+        items.append(("기관 경쟁률", f"{num_ko(int(r))} 대 일", shown, "🔥"))
+    if facts.lockup_ratio_pct is not None:
+        p = facts.lockup_ratio_pct
+        items.append(("의무보유 확약", "일 퍼센트 미만" if p < 1 else f"약 {num_ko(round(p))} 퍼센트", f"{p:g}%", "🔒"))
+    if not items and facts.valuation_krw:
+        items.append(("주관사 몸값", f"{num_ko(facts.valuation_krw)} 원", f"{facts.valuation_krw:,}원", "🧮"))
+    if facts.float_ratio_pct is not None:
+        p = facts.float_ratio_pct
+        items.append(("상장 첫날 팔 수 있는 물량", f"약 {num_ko(round(p))} 퍼센트", f"{p:g}%", "📦"))
+    for i, (label, sp, sh, icon) in enumerate(items):
+        last = i == len(items) - 1
+        s.add(label).add(sp + ("예요." if last else ","), sh + ("예요." if last else ","))
+        rows.append({"label": label, "value": sh, "icon": icon})
+    return (s if items else Seg("recap")), rows
+
+
+def ask_line(phase: str) -> str:
+    return {"listing": "상장 첫날, 여러분이라면 살 건가요, 팔 건가요?",
+            "post": "여러분은 이 공모주, 청약할 건가요?"}.get(phase, "여러분은 청약할 생각 있나요?")
 
 
 def tts_text(segs: list[Seg]) -> str:
@@ -333,6 +365,7 @@ def render(facts, summary, hook, phase: str, today: date, out: Path, *, clip: Pa
                       "val": facts.valuation_krw, "model": facts.valuation_model, "mult": facts.valuation_multiple},
             "demand": {"ratio": facts.demand_ratio, "lock": facts.lockup_ratio_pct},
             "float": {"pct": facts.float_ratio_pct},
+            "recap": recap(facts)[1],
             "sched": {"s": facts.subscription_start, "e": facts.subscription_end},
             "clip": {"dir": (tmp / "clip").as_uri(), "n": n_frames},
             "img": {"hero": _photo(hero, tmp / "hero.jpg", 0, 0.62), "back": _photo(back or hero, tmp / "back.jpg", 18, 0.42)},

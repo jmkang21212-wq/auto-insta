@@ -17,6 +17,8 @@ html,body{width:1080px;height:1920px;overflow:hidden;background:var(--bg);font-f
 .bar{height:34px;border-radius:17px}
 .dot{position:absolute;width:26px;height:26px;border-radius:50%}
 .ptag{position:absolute;padding:12px 24px;border-radius:16px;font-weight:800;font-size:36px;background:rgba(11,13,18,.8);border:2px solid rgba(94,169,255,.55);color:#DCEBFF;white-space:nowrap;transform:translate(-50%,-50%);box-shadow:0 10px 30px rgba(0,0,0,.4)}
+.rrow{display:flex;align-items:center;gap:22px;padding:22px 30px;margin-bottom:18px;border-radius:24px;background:rgba(11,13,18,.72);border:2px solid rgba(255,255,255,.14);opacity:0}
+.rrow .ic{font-size:52px}.rrow .lb{flex:1;font-weight:700;font-size:36px;color:var(--mute)}.rrow .vl{font-weight:900;font-size:56px;font-variant-numeric:tabular-nums}
 .chip{display:inline-block;padding:16px 30px;border-radius:20px;background:rgba(11,13,18,.62);border:2px solid rgba(255,255,255,.16);backdrop-filter:blur(6px)}
 #top{position:absolute;left:0;right:0;top:288px;text-align:center}
 #top span{display:inline-block;padding:12px 28px;border-radius:999px;font-weight:700;font-size:32px;background:rgba(94,169,255,.16);color:var(--blue);border:2px solid rgba(94,169,255,.4)}
@@ -95,11 +97,13 @@ html,body{width:1080px;height:1920px;overflow:hidden;background:var(--bg);font-f
   <div class="abs c shadow" style="top:840px;font-size:40px;color:var(--mute);font-weight:700" id="schedSub"></div>
 </div>
 
-<div class="scene" id="s-outro">
-  <div class="abs c" style="top:600px">
-    <div class="shadow" style="font-weight:900;font-size:180px;letter-spacing:-0.05em">ipov<span class="gold">.</span></div>
-    <div style="font-weight:700;font-size:44px;color:var(--mute);margin-top:4px">숫자로 보는 공모주</div>
-    <div class="shadow" style="margin-top:90px;font-weight:800;font-size:58px">자세한 숫자는 <span class="blue">캡션</span>에 👇</div>
+<div class="scene" id="s-end">
+  <div class="abs c lab shadow" id="recapLab" style="top:440px">정리하면</div>
+  <div class="abs" id="recapRows" style="left:110px;right:110px;top:520px"></div>
+  <div class="abs c" id="askBox" style="top:1000px;opacity:0">
+    <div id="askIcon" style="font-size:110px;line-height:1">💬</div>
+    <div id="askTxt" class="shadow" style="margin-top:18px;font-weight:900;font-size:62px;line-height:1.24"></div>
+    <div style="margin-top:18px;font-weight:700;font-size:34px;color:var(--mute)">댓글로 알려 주세요 👇 · 자세한 숫자는 캡션에</div>
   </div>
 </div>
 
@@ -140,6 +144,11 @@ if(D.logo){$('logoImg').src=D.logo;$('logoBox').style.background=D.logoTone==='l
   if(D.logoTone==='light')$('logoBox').style.border='2px solid rgba(255,255,255,.18)';$('corpName').style.display='none'}else{$('logoBox').style.display='none'}
 $('corpName').textContent=D.about.corp;
 $('aboutMeta').textContent=D.about.meta;
+$('askTxt').textContent='';
+const rows=(D.recap||[]).map(r=>{const d=document.createElement('div');d.className='rrow';
+  d.innerHTML=`<span class="ic">${r.icon}</span><span class="lb">${r.label}</span><span class="vl">${r.value}</span>`;$('recapRows').appendChild(d);return {el:d,value:r.value,label:r.label}});
+if(sc.ask){const ws=D.caps.filter(c=>c.s>=sc.ask.t0-0.05&&c.s<sc.ask.t1).map(c=>c.d);const i=ws.findIndex(w=>w.startsWith('댓글로'));
+  $('askTxt').innerHTML=(i>0?ws.slice(0,i):ws).join(' ').split(/(?<=,)\s/).join('<br>');}
 const PARTS=(D.hook.parts||[]).slice(0,5);
 const defWords=[];if(sc.define){const box=$('defineBox');const ws=D.caps.filter(c=>c.s>=sc.define.t0-0.05&&c.s<sc.define.t1);
   ws.forEach((w,i)=>{const sp=document.createElement('span');sp.style.display='inline-block';sp.style.marginRight='0.28em';
@@ -254,11 +263,18 @@ async function setT(t){
   // 6. 일정
   if(sc.sched){const s=sc.sched,u=local(s,t),v=vis(s,t);trans('s-sched',s,t);$('schedBig').style.transform=`scale(${0.85+0.15*back(prog(u,0,0.5))})`}
   // 7. 마무리
-  if(sc.outro){const s=sc.outro,u=local(s,t);trans('s-outro',s,t)}
+  {const R=sc.recap,K=sc.ask;const end=R||K?{t0:(R||K).t0,t1:(K||R).t1}:null;trans('s-end',end,t);
+   if(end){rows.forEach((r,i)=>{const k=capT(r.value,R||K);const lb=D.caps.find(c=>R&&c.s>=R.t0&&c.s<R.t1&&r.label.startsWith(c.d.replace(/[,.]$/,'')));const at=lb?lb.s-0.15:(k?k.s-0.6:end.t0+0.4+i*0.5);const p=prog(t,at,at+0.4);
+       r.el.style.opacity=clamp(p*2);r.el.style.transform=`translateX(${(1-eo(p))*-60}px)`;r.el.style.borderColor=(k&&t>=k.s&&t<=k.e+0.3)?'rgba(245,200,75,.8)':'rgba(255,255,255,.14)'});
+     $('recapLab').style.opacity=R?eo(prog(t,end.t0,end.t0+0.4)):0;
+     if(K){const q=prog(t,K.t0-0.1,K.t0+0.5);$('askBox').style.opacity=clamp(q*2);$('askBox').style.transform=`translateY(${(1-eo(q))*50}px) scale(${0.9+0.1*back(q)})`;
+       $('askIcon').style.transform=`translateY(${Math.sin(t*5)*8}px) rotate(${Math.sin(t*3)*6}deg)`;
+       const ry=R?0:-200;$('recapRows').style.transform=`translateY(${ry}px)`;}}}
 
   // 자막
   let cur=null;for(const ch of chunks){if(t>=ch[0].s-0.05&&t<=ch[ch.length-1].e+0.25)cur=ch}
   if(cur&&sc.define&&cur[0].s>=sc.define.t0-0.05&&cur[0].s<sc.define.t1)cur=null;
+  if(cur&&sc.ask&&cur[0].s>=sc.ask.t0-0.05)cur=null;
   $('cap').innerHTML=cur?cur.map(w=>`<span style="color:${t>=w.s?'#F2F4F6':'rgba(242,244,246,.4)'}">${w.d.replace(/[,.]$/,'')}</span>`).join(' '):'';
 }
 window.setT=setT;
