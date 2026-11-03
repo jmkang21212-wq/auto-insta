@@ -242,12 +242,16 @@ def run(adapter: Adapter, date_from: str, date_to: str, only_rcept: str | None, 
                 log("logo", corp=d.corp_name, homepage=facts.homepage, result=logo_how)
                 paths, image_log = render(card_list, facts.corp_name, facts.industry or "", out, d.rcept_no)
                 # 모션 리포트 (2026-11-03): 7초 훅 릴스를 20초 안팎 움직이는 리포트 + AI 음성으로 바꾼다. 실패하면 7초 훅 릴스 그대로
+                motion_ok = False
                 if reel_meta and os.getenv("MOTION", "1") != "0":
                     try:
                         mm = motion.make_for(facts, summary, hook, phase, today, out / f"{d.rcept_no}_reel.mp4", reel_meta,
                                              f"자료: DART {doc} {src} · 영상·사진 Pixabay · 투자 권유 아님")
                         reel_meta.update(mm)
-                        reel_cap = motion.credit(reel_cap) if reel_cap else reel_cap
+                        # 2026-11-03 결정: 모션 리포트가 카드뉴스를 대신한다 → 릴스 하나만, 캡션은 자세한 판(+AI 음성 표기)
+                        motion_ok = True
+                        cap = motion.credit(cap)
+                        reel_cap = ""
                         log("motion", corp=d.corp_name, ok=True, seconds=mm["seconds"], scenes=mm["scenes"])
                     except motion.MotionUnavailable as e:
                         log("motion", corp=d.corp_name, ok=False, skipped=str(e))
@@ -276,7 +280,7 @@ def run(adapter: Adapter, date_from: str, date_to: str, only_rcept: str | None, 
                                         "subscription_start": facts.subscription_start, "n": len(paths),
                                         "phase": phase,
                                         # 릴스가 있으면 캐러셀(자세한 판) + 릴스(입구) 둘 다 게시 (2026-10-28)
-                                        "format": "both" if reel_meta else "carousel", "market": "KR",
+                                        "format": "reel" if motion_ok else ("both" if reel_meta else "carousel"), "market": "KR",
                                         "sample": adapter.name == "sample"}, ensure_ascii=False) + "\n")
                 produced += 1
             except Exception as e:  # noqa: BLE001

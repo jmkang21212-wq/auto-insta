@@ -166,6 +166,8 @@ def cmd_stage(args) -> None:
         post = store.stage(settings.out_dir / f"run{run}", r["rcept_no"], r["corp"])
         post.meta["phase"] = r.get("phase")
         post.meta["subscription_start"] = r.get("subscription_start")
+        if r.get("format") == "reel" and post.reel:  # 모션 리포트가 카드뉴스를 대신함 (2026-11-03)
+            post.meta["format"] = "reel"
         # 게시 시각: 미국 아침, 한국 오후. 같은 날 같은 시장이 겹치면 다음 자리(2시간 뒤)로 (2026-10-28)
         market = r.get("market") or "KR"
         taken = {p.meta.get("publish_at") for p in store.all_posts() if p.meta.get("publish_at") and p.meta.get("status") != "rejected"}
