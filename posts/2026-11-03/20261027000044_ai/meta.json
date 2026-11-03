@@ -12,5 +12,11 @@
  "reel": "reel.mp4",
  "ai_generated": true,
  "publish_at": "2026-11-03T17:30:00+09:00",
- "replaces": "https://www.instagram.com/reel/DfQ-bgbh-eP/"
+ "replaces": "https://www.instagram.com/reel/DfQ-bgbh-eP/",
+ "telegram": {
+  "message_id": 219,
+  "chat_id": 8647980564,
+  "format": "reel",
+  "sent_at": "2026-11-03T16:58:46.521603+09:00"
+ }
 }
