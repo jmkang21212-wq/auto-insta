@@ -166,6 +166,7 @@ const partEls=PARTS.map((w,i)=>{const a=ANGS[i]*Math.PI/180,x=TC.x+Math.cos(a)*3
 $('src').textContent=D.source;
 const V=D.value, hasPrice=!!V.price, vtop=Math.max(V.val||0,V.price||V.high||0)||1;
 $('v1lab').textContent=hasPrice?'확정 공모가':'희망 공모가';
+if(!hasPrice)$('v1').style.fontSize='92px';
 const v1End=hasPrice?V.price:V.high;
 if(V.model&&V.mult)$('vnote').textContent=`비슷한 상장사 ${V.model} ${V.mult}배로 계산 · 신고서는 상장 뒤 적정주가가 아니라고 밝힘`;
 else $('vnote').textContent='신고서는 이 값이 상장 뒤 적정주가가 아니라고 밝힘';

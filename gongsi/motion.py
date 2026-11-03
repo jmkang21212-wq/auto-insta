@@ -117,10 +117,15 @@ def spoken_explain(explain: str) -> str:
         return ""
     t = re.sub(r"\s+", " ", t).rstrip(".")
     for a, b in (("하는 장치임", "하는 장치예요"), ("장치임", "장치예요"), ("말임", "말이에요"), ("부품임", "부품이에요"),
-                 ("임", "이에요"), ("함", "해요"), ("됨", "돼요")):
+                 ("함", "해요"), ("됨", "돼요")):
         if t.endswith(a):
             t = t[: -len(a)] + b
             break
+    else:
+        if t.endswith("임") and len(t) > 1:  # 센서임 → 센서예요, 장비임 → 장비예요, 부품임 → 부품이에요
+            prev = t[-2]
+            closed = "가" <= prev <= "힣" and (ord(prev) - 0xAC00) % 28
+            t = t[:-1] + ("이에요" if closed else "예요")
     return t + "."
 
 
@@ -182,10 +187,10 @@ def script(facts, summary, hook, phase: str, today: date) -> list[Seg]:
         if facts.lockup_ratio_pct is not None:
             sp, sh = _pct_spoken(facts.lockup_ratio_pct)
             segs.append(Seg("lockup").add("그런데 상장 뒤에 안 팔겠다고 약속한 물량은,").add(sp, sh))
-    elif facts.float_ratio_pct:
-        sp, sh = _pct_spoken(facts.float_ratio_pct)
-        s = Seg("float").add("상장 첫날 팔 수 있는 물량은").add(sp, sh)
-        segs.append(s)
+    else:  # 수요예측 전: 첫날 유통 물량(있으면) + 청약 일정
+        if facts.float_ratio_pct:
+            sp, sh = _pct_spoken(facts.float_ratio_pct)
+            segs.append(Seg("float").add("상장 첫날 팔 수 있는 물량은").add(sp, sh))
         if facts.subscription_start and facts.subscription_end:
             segs.append(Seg("sched").add("청약은").add(f"{date_ko(facts.subscription_start)}부터",
                                                        f"{int(facts.subscription_start[5:7])}월 {int(facts.subscription_start[8:10])}일부터")
@@ -193,7 +198,7 @@ def script(facts, summary, hook, phase: str, today: date) -> list[Seg]:
                              f"{int(facts.subscription_end[5:7])}월 {int(facts.subscription_end[8:10])}일까지예요."))
     # 마무리 (11-03 사용자: "결론이 뭐야" → 숫자 정리 + 시청자에게 묻는 질문. 판단을 대신하지 않고 묻기만 한다)
     rc, rows = recap(facts)
-    if rc.tokens:
+    if rc.tokens and os.getenv("MOTION_RECAP", "1") != "0":
         segs.append(rc)
     segs.append(Seg("ask").add(ask_line(phase)).add("댓글로 알려 주세요."))
     return segs
@@ -228,7 +233,8 @@ def ask_line(phase: str) -> str:
 
 
 def tts_text(segs: list[Seg]) -> str:
-    return f' <break time="{PAUSE}s"/> '.join(s.spoken() for s in segs)
+    # '힘/토크센서'의 빗금을 '빗금'으로 읽지 않게 (낱말 수는 그대로)
+    return f' <break time="{PAUSE}s"/> '.join(s.spoken().replace("/", "·") for s in segs)
 
 
 # ── TTS ──────────────────────────────────────────────────────────
@@ -365,7 +371,7 @@ def render(facts, summary, hook, phase: str, today: date, out: Path, *, clip: Pa
                       "val": facts.valuation_krw, "model": facts.valuation_model, "mult": facts.valuation_multiple},
             "demand": {"ratio": facts.demand_ratio, "lock": facts.lockup_ratio_pct},
             "float": {"pct": facts.float_ratio_pct},
-            "recap": recap(facts)[1],
+            "recap": recap(facts)[1] if os.getenv("MOTION_RECAP", "1") != "0" else [],
             "sched": {"s": facts.subscription_start, "e": facts.subscription_end},
             "clip": {"dir": (tmp / "clip").as_uri(), "n": n_frames},
             "img": {"hero": _photo(hero, tmp / "hero.jpg", 0, 0.62), "back": _photo(back or hero, tmp / "back.jpg", 18, 0.42)},
