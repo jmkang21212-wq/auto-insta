@@ -107,7 +107,7 @@ def test_publish_both_cards_first_then_reel_and_retry_skips_cards():
             calls.append(("carousel", cap))
             return {"media_id": "c1", "permalink": "https://i/c1"}
 
-        def fake_reel(url, cap, music=True):
+        def fake_reel(url, cap, music=True, ai=False):
             calls.append(("reel", cap))
             if fail["reel"]:
                 raise RuntimeError("일시 오류")

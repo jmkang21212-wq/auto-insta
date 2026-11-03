@@ -45,7 +45,7 @@ def _publish(post: store.Post, how: str) -> bool:
             log("publish", corp=post.meta["corp"], rcept_no=post.rcept_no, part="carousel", ok=True, permalink=c.get("permalink"))
         if fmt in ("both", "reel") and post.reel:
             res = instagram.publish_reel(post.reel_url, post.caption_reel if fmt == "both" else post.caption,
-                                         music=os.getenv("REEL_MUSIC", "1") != "0")
+                                         music=os.getenv("REEL_MUSIC", "1") != "0", ai=bool(post.meta.get("ai_generated")))
         else:
             res = instagram.publish_carousel(post.urls, post.caption)
     except Exception as e:
@@ -168,6 +168,8 @@ def cmd_stage(args) -> None:
         post.meta["subscription_start"] = r.get("subscription_start")
         if r.get("format") == "reel" and post.reel:  # 모션 리포트가 카드뉴스를 대신함 (2026-11-03)
             post.meta["format"] = "reel"
+        if r.get("ai_generated"):
+            post.meta["ai_generated"] = True
         # 게시 시각: 미국 아침, 한국 오후. 같은 날 같은 시장이 겹치면 다음 자리(2시간 뒤)로 (2026-10-28)
         market = r.get("market") or "KR"
         taken = {p.meta.get("publish_at") for p in store.all_posts() if p.meta.get("publish_at") and p.meta.get("status") != "rejected"}
@@ -327,6 +329,7 @@ def _rerender(post: store.Post, idx: int) -> None:
             video.update(motion.make_for(facts, summary, hook, b.get("phase", "pre"), slots.now_kst().date(), post.dir / name, video,
                                          f"자료: DART {doc} {src} · 영상·사진 Pixabay · 투자 권유 아님"))
             voiced = True
+            post.meta["ai_generated"] = True
         except Exception as e:  # noqa: BLE001
             log("motion", rcept_no=post.rcept_no, ok=False, error=str(e)[:300])
     cap = cards.caption(facts, src, summary, doc, hook, credit="📷 자료 화면: Pixabay")

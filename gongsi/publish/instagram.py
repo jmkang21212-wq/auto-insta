@@ -95,11 +95,13 @@ def publish_carousel(image_urls: list[str], caption: str) -> dict:
     return {"media_id": media_id, "permalink": permalink, "children": children}
 
 
-def publish_reel(video_url: str, caption: str, music: bool = True) -> dict:
+def publish_reel(video_url: str, caption: str, music: bool = True, ai: bool = False) -> dict:
     """릴스 게시. 영상은 공개 URL(깃허브 raw), 9:16 H.264. 피드에도 보이게 share_to_feed=true.
     music=True이고 페이스북 로그인 토큰(FB_USER_TOKEN)이 있으면 메타 음악(Audio API)에서 곡을 골라 붙여 게시한다.
     토큰이 없거나 음악 쪽이 실패하면 지금처럼 Instagram 로그인으로 소리 없이 게시하고, 이유를 music_error에 남긴다"""
     params = {"media_type": "REELS", "video_url": video_url, "caption": caption[:2200], "share_to_feed": "true", "thumb_offset": "500"}
+    if ai:  # AI 정보 레이블 (2026-06 게시 API 추가). AI 음성 내레이션이 든 모션 리포트는 반드시 (11-03 노출 0 뒤 결정)
+        params["is_ai_generated"] = "true"
     err = None
     if music and fb_ready():
         try:

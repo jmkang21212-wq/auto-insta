@@ -281,7 +281,7 @@ def run(adapter: Adapter, date_from: str, date_to: str, only_rcept: str | None, 
                                         "subscription_start": facts.subscription_start, "n": len(paths),
                                         "phase": phase,
                                         # 릴스가 있으면 캐러셀(자세한 판) + 릴스(입구) 둘 다 게시 (2026-10-28)
-                                        "format": "reel" if motion_ok else ("both" if reel_meta else "carousel"), "market": "KR",
+                                        "format": "reel" if motion_ok else ("both" if reel_meta else "carousel"), "market": "KR", "ai_generated": motion_ok,
                                         "sample": adapter.name == "sample"}, ensure_ascii=False) + "\n")
                 produced += 1
             except Exception as e:  # noqa: BLE001
