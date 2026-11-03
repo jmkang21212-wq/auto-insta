@@ -6,7 +6,7 @@
  "market": "KR",
  "rcept_no": "20261030000140_ai",
  "n": 0,
- "status": "approved",
+ "status": "published",
  "source_run": "manual",
  "format": "reel",
  "reel": "reel.mp4",
@@ -18,5 +18,14 @@
   "chat_id": 8647980564,
   "format": "reel",
   "sent_at": "2026-11-03T16:58:50.064488+09:00"
+ },
+ "instagram": {
+  "media_id": "18200907547381052",
+  "permalink": "https://www.instagram.com/reel/DfRa7iENtsh/",
+  "container": "17892021213468914",
+  "format": "reel",
+  "audio_id": null,
+  "published_at": "2026-11-03",
+  "by": "slot"
  }
 }
