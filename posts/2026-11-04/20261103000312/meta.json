@@ -11,5 +11,11 @@
  "subscription_start": "2026-11-04",
  "ai_generated": true,
  "market": "KR",
- "publish_at": "2026-11-04T13:00:00+09:00"
+ "publish_at": "2026-11-04T13:00:00+09:00",
+ "telegram": {
+  "message_id": 225,
+  "chat_id": 8647980564,
+  "format": "reel",
+  "sent_at": "2026-11-04T11:45:59.664555+09:00"
+ }
 }
