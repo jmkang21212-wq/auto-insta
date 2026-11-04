@@ -1,0 +1,15 @@
+{
+ "corp": "영광와이케이엠씨",
+ "rcept_no": "20261103000312",
+ "date": "2026-11-04",
+ "n": 6,
+ "status": "pending",
+ "source_run": "run1",
+ "format": "reel",
+ "reel": "reel.mp4",
+ "phase": "post",
+ "subscription_start": "2026-11-04",
+ "ai_generated": true,
+ "market": "KR",
+ "publish_at": "2026-11-04T13:00:00+09:00"
+}
