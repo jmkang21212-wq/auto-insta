@@ -3,7 +3,7 @@
  "rcept_no": "20261103000312",
  "date": "2026-11-04",
  "n": 6,
- "status": "approved",
+ "status": "published",
  "source_run": "run1",
  "format": "reel",
  "reel": "reel_novoice.mp4",
@@ -18,5 +18,14 @@
   "chat_id": 8647980564,
   "format": "reel",
   "sent_at": "2026-11-05T09:35:16.058442+09:00"
+ },
+ "instagram": {
+  "media_id": "18388226722233954",
+  "permalink": "https://www.instagram.com/reel/DfWME0iAIfm/",
+  "container": "17892430791468914",
+  "format": "reel",
+  "audio_id": null,
+  "published_at": "2026-11-05",
+  "by": "slot"
  }
 }
