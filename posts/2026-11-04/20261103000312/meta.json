@@ -12,5 +12,11 @@
  "ai_generated": false,
  "market": "KR",
  "publish_at": "2026-11-05T09:45:00+09:00",
- "test": "AI 음성 없는 판 (음악만)"
+ "test": "AI 음성 없는 판 (음악만)",
+ "telegram": {
+  "message_id": 227,
+  "chat_id": 8647980564,
+  "format": "reel",
+  "sent_at": "2026-11-05T09:35:16.058442+09:00"
+ }
 }
