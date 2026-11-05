@@ -1,0 +1,22 @@
+{
+ "corp": "제이앤티지",
+ "homepage": "http://www.thejntg.com/",
+ "source": "https://www.thejntg.com/servlet/resources/front/images/logo.png",
+ "alt": "JNTG 로고",
+ "picked_by": "claude",
+ "tone": "dark",
+ "candidates": [
+  "https://www.thejntg.com/servlet/resources/front/images/logo.png",
+  "https://www.thejntg.com/servlet/resources/front/images/search.png",
+  "https://www.thejntg.com/servlet/resources/front/images/menu.png",
+  "https://www.thejntg.com/servlet/resources/front/images/ic-gnb-01.png",
+  "https://www.thejntg.com/servlet/resources/front/images/ic-gnb-02.png",
+  "https://www.thejntg.com/servlet/resources/front/images/ic-gnb-03.png",
+  "https://www.thejntg.com/servlet/resources/front/images/ic-gnb-04.png",
+  "https://www.thejntg.com/servlet/resources/front/images/ic-gnb-05.png",
+  "https://www.thejntg.com/servlet/resources/front/images/btn-search.png",
+  "https://www.thejntg.com/servlet/resources/front/images/network-map.png",
+  "https://www.thejntg.com/servlet/resources/front/images/ic-s-right.png",
+  "https://www.thejntg.com/servlet/resources/front/images/human-01.png"
+ ]
+}

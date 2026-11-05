@@ -1,0 +1,15 @@
+{
+ "corp": "씨앤엠",
+ "rcept_no": "20261103000363",
+ "date": "2026-11-05",
+ "n": 10,
+ "status": "pending",
+ "source_run": "run1",
+ "format": "reel",
+ "reel": "reel.mp4",
+ "phase": "pre",
+ "subscription_start": "2026-11-12",
+ "ai_generated": true,
+ "market": "KR",
+ "publish_at": "2026-11-05T19:00:00+09:00"
+}

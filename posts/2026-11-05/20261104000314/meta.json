@@ -1,0 +1,15 @@
+{
+ "corp": "에이엘로봇",
+ "rcept_no": "20261104000314",
+ "date": "2026-11-05",
+ "n": 6,
+ "status": "pending",
+ "source_run": "run1",
+ "format": "reel",
+ "reel": "reel.mp4",
+ "phase": "post",
+ "subscription_start": "2026-11-06",
+ "ai_generated": true,
+ "market": "KR",
+ "publish_at": "2026-11-05T15:00:00+09:00"
+}
