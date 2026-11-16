@@ -1,0 +1,15 @@
+{
+ "corp": "아델",
+ "rcept_no": "20261111000327",
+ "date": "2026-11-16",
+ "n": 10,
+ "status": "pending",
+ "source_run": "run1",
+ "format": "reel",
+ "reel": "reel.mp4",
+ "phase": "pre",
+ "subscription_start": "2026-11-23",
+ "ai_generated": true,
+ "market": "KR",
+ "publish_at": "2026-11-16T15:00:00+09:00"
+}
