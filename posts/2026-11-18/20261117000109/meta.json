@@ -1,0 +1,15 @@
+{
+ "corp": "유캐스트",
+ "rcept_no": "20261117000109",
+ "date": "2026-11-18",
+ "n": 6,
+ "status": "pending",
+ "source_run": "run1",
+ "format": "reel",
+ "reel": "reel.mp4",
+ "phase": "post",
+ "subscription_start": "2026-11-18",
+ "ai_generated": true,
+ "market": "KR",
+ "publish_at": "2026-11-18T15:00:00+09:00"
+}
